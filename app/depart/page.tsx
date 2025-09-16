@@ -1,0 +1,70 @@
+"use client";
+import Image from "next/image";
+import { useState } from "react";
+import Navbar from "@/components/navBar";
+import { useRouter } from "next/navigation";
+
+
+
+const items = [
+  "กระดูกและข้อ","กุมารเวชกรรม","นรีเวชกรรม","ผิวหนัง",
+  "ศัลยกรรมตกแต่ง","ศัลยกรรมทั่วไป","สุขภาพเพศชาย","สมองและไขสันหลัง",
+  "หลอดเลือด","หัวใจและทรวงอก","ศัลยกรรมเด็ก","มะเร็งเต้านม","สุขภาพจิต","บุคคลข้ามเพศ","หู คอ จมูก","เวชศาสตร์นิวเคลียร์","โรคหัวใจ"
+];
+
+export default function DepartPage() {
+  const [selected, setSelected] = useState<string | null>("กระดูกและข้อ"); // default เลือกอันที่ 2
+
+  const router = useRouter();
+
+  const handleSubmit = () => {
+    console.log("แผนกที่เลือก:",selected);
+    router.push("/");
+  }
+
+  return (
+    <>
+    <Navbar></Navbar>
+    
+    <div className="max-w-3xl mx-auto px-4 py-6  mt-20 rounded-md shadow-2xl relative pb-20">
+      <h2 className="text-center text-2xl font-bold mb-4">เลือกแผนกที่ต้องการ</h2>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-6 gap-y-4">
+        
+        
+
+        {items.map((label, i) => {
+          const isActive = selected === label;
+          return (
+            <button
+              key={i}
+              onClick={() => setSelected(label)}
+              className={[
+                "w-full h-12 px-3 rounded-md flex items-center justify-center",
+                "bg-white shadow hover:shadow-md transition-all hover:-translate-y-0.5",
+                "border cursor-pointer",
+                isActive ? "bg-sky-100 border-sky-400 ring-1 ring-sky-400" : "border-gray-200",
+                "text-gray-800"
+              ].join(" ")}
+            >
+              <span className={isActive ? "font-semibold text-sky-700" : "font-medium"}>
+                {label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <button type="button" className="absolute -bottom-4 left-120 w-50 h-10 bg-cyan-600 justify-center items-center flex rounded-md mt-10 mx-auto cursor-pointer hover:bg-cyan-700 transition-colors duration-150"
+        onClick={() => handleSubmit()}>
+       <p className="text-center font-extrabold text-white text-xl">ต่อไป</p> 
+        </button>
+        <button type="button" className="absolute -bottom-5 left-15 w-40 h-10 bg-sky-200 justify-center items-center flex rounded-md mt-10 mx-auto cursor-pointer hover:bg-sky-300 transition-colors duration-150"
+        onClick={() => handleSubmit()}>
+       <p className="text-center font-extrabold text-cyan-700 text-xl">กลับ</p> 
+        </button>
+     
+    </div>
+    </>
+  );
+}
