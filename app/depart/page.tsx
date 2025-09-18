@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import { useState } from "react";
-import Navbar from "@/components/navBar";
+import Navbar from "@/components/Navbar";
 import { useRouter } from "next/navigation";
 
 
@@ -13,13 +13,14 @@ const items = [
 ];
 
 export default function DepartPage() {
-  const [selected, setSelected] = useState<string | null>("กระดูกและข้อ"); // default เลือกอันที่ 2
+  const [selected, setSelected] = useState<string>("กระดูกและข้อ"); // default เลือกอันที่ 2
 
   const router = useRouter();
 
   const handleSubmit = () => {
     console.log("แผนกที่เลือก:",selected);
-    router.push("/");
+    
+    router.push(`/booking?depart=${encodeURIComponent(selected)}`);
   }
 
   return (

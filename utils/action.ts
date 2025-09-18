@@ -11,3 +11,20 @@ export async function registerAction(formData : FormData){
     await new Promise (r => setTimeout(r,2000));
     redirect('/');
 }
+
+export async function bookingAction(formData : FormData){
+    const obj = Object.fromEntries(formData.entries());
+
+    const files = formData.getAll('attachments') as File[];
+
+    console.log('data:',obj);
+    console.log('files:',files.map(f => ({name : f.name, size : f.size})));
+
+    
+    redirect('/patientForm');
+}
+
+export async function patientAction(formData : FormData){
+    const rawData = Object.fromEntries(formData);
+    console.log(rawData); 
+}
