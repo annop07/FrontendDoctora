@@ -10,20 +10,48 @@ export const API_ENDPOINTS = {
 
 export class AuthService {
   static async register(data: RegisterRequest): Promise<MessageResponse> {
-    const response = await fetch(API_ENDPOINTS.REGISTER, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
+    console.log('Making request to:', API_ENDPOINTS.REGISTER);
+    console.log('Request data:', data);
+    
+    try {
+      const response = await fetch(API_ENDPOINTS.REGISTER, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Registration failed');
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
+      if (!response.ok) {
+        let errorMessage = 'Registration failed';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch (jsonError) {
+          console.error('Error parsing error response as JSON:', jsonError);
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const responseText = await response.text();
+      console.log('Response text:', responseText);
+      
+      if (!responseText) {
+        throw new Error('Empty response from server');
+      }
+      
+      return JSON.parse(responseText);
+    } catch (fetchError) {
+      console.error('Fetch error:', fetchError);
+      if (fetchError instanceof TypeError && fetchError.message.includes('fetch')) {
+        throw new Error('Cannot connect to server. Is the backend running on port 8081?');
+      }
+      throw fetchError;
     }
-
-    return response.json();
   }
 
   static async login(data: LoginRequest): Promise<LoginResponse> {

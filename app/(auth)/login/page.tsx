@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AuthService } from "@/lib/auth-service";
-import type { LoginRequest } from "@/types/auth";
+import { useAuth } from "@/context/auth-context";
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -17,34 +17,45 @@ export default function LoginPage() {
     // Check for success message from registration
     const message = searchParams.get('message');
     if (message) {
-      setSuccessMessage(message);
+      const decodedMessage = decodeURIComponent(message);
+      setSuccessMessage(decodedMessage);
+      
+      // Clear the message from URL after showing it
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
     }
 
-    // Check if user is already logged in
-    if (AuthService.isAuthenticated()) {
-      router.push('/dashboard'); // or wherever you want to redirect logged-in users
+    // Check if user is already logged in (after auth context loads)
+    if (!authLoading && isAuthenticated) {
+      router.push('/dashboard');
     }
-  }, [searchParams, router]);
+  }, [searchParams, router, isAuthenticated, authLoading]);
+
+  // Show loading while auth context is initializing
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
+    setSuccessMessage(null); // Clear success message on login attempt
     setIsLoading(true);
 
     try {
       const formData = new FormData(e.currentTarget);
-      const loginData: LoginRequest = {
-        email: formData.get('email') as string,
-        password: formData.get('password') as string,
-      };
+      const email = formData.get('email') as string;
+      const password = formData.get('password') as string;
 
-      const response = await AuthService.login(loginData);
+      // Use the AuthContext login method which handles both token and user state
+      await login(email, password);
       
-      // Store the JWT token
-      AuthService.setToken(response.token);
-      
-      // Redirect to dashboard or home page
-      router.push('/dashboard'); // Change this to your desired redirect path
+      // Redirect will happen automatically via useEffect when isAuthenticated becomes true
+      router.push('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {

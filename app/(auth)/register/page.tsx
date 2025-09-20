@@ -38,12 +38,14 @@ export default function RegisterPage() {
         lastName: formData.get('last') as string,
       };
 
+      console.log('Sending registration data:', registerData);
       await AuthService.register(registerData);
       
       // Registration successful, redirect to login
       router.push('/login?message=Registration successful! Please log in.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed');
+      console.error('Registration error:', err);
+      setError(err instanceof Error ? err.message : 'Registration failed - check if backend is running');
     } finally {
       setIsLoading(false);
     }
