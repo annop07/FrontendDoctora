@@ -34,8 +34,3 @@ export interface User {
   phone?: string;
   createdAt: string;
 }
-
-export interface AuthResponse {
-  token: string;
-  user?: User;
-}

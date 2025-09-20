@@ -34,8 +34,8 @@ export default function RegisterPage() {
       const registerData: RegisterRequest = {
         email: formData.get('email') as string,
         password: formData.get('password') as string,
-        firstName: formData.get('first') as string,
-        lastName: formData.get('last') as string,
+        firstName: '', // Send empty string since backend handles null
+        lastName: '', // Send empty string since backend handles null
       };
 
       console.log('Sending registration data:', registerData);
@@ -63,27 +63,6 @@ export default function RegisterPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 pt-2 space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">First name</label>
-            <input
-              name="first"
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-              required
-              disabled={isLoading}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Last name</label>
-            <input
-              name="last"
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-              required
-              disabled={isLoading}
-            />
-          </div>
-        </div>
-
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">Email</label>
           <input
