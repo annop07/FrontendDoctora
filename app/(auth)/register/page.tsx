@@ -1,35 +1,53 @@
 'use client';
 
 import Link from 'next/link';
-import { useFormStatus } from 'react-dom';
-import { registerAction } from '@/utils/action';
-import { useSearchParams } from 'next/navigation';
-import { validatePasswords } from '@/utils/validatePass';
 import { useState } from 'react';
-
-function SubmitButton({ disabledExtra = false }: { disabledExtra?: boolean }) {
-  const { pending } = useFormStatus();
-  return (
-    <button
-      type="submit"
-      disabled={pending || disabledExtra}
-      className="mt-2 w-full rounded-lg bg-teal-600 py-2.5 font-medium text-white hover:bg-teal-700 disabled:opacity-60"
-    >
-      {pending ? 'Creating...' : 'Create account'}
-    </button>
-  );
-}
+import { useRouter } from 'next/navigation';
+import { validatePasswords } from '@/utils/validatePass';
+import { AuthService } from '@/lib/auth-service';
+import type { RegisterRequest } from '@/types/auth';
 
 export default function RegisterPage() {
-  const params = useSearchParams();
-  const serverError = params.get('error'); // อย่าใช้ชื่อทับกับ state
-
-  // state สำหรับตรวจรหัสผ่าน
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
 
-  // ตรวจทุกครั้งที่พิมพ์
-  const liveError = validatePasswords(password, confirm); // string | null
+  // Live password validation
+  const liveError = validatePasswords(password, confirm);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError(null);
+    
+    // Final validation check
+    if (liveError) {
+      setError(liveError);
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const formData = new FormData(e.currentTarget);
+      const registerData: RegisterRequest = {
+        email: formData.get('email') as string,
+        password: formData.get('password') as string,
+        firstName: formData.get('first') as string,
+        lastName: formData.get('last') as string,
+      };
+
+      await AuthService.register(registerData);
+      
+      // Registration successful, redirect to login
+      router.push('/login?message=Registration successful! Please log in.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Registration failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-md rounded-2xl border border-slate-200 bg-white/90 shadow-xl backdrop-blur mt-10">
@@ -42,8 +60,7 @@ export default function RegisterPage() {
         <p className="mt-1 text-slate-500">Get faster and better healthcare</p>
       </div>
 
-      {/* ส่งไปที่ server action */}
-      <form action={registerAction} className="p-6 pt-2 space-y-4">
+      <form onSubmit={handleSubmit} className="p-6 pt-2 space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">First name</label>
@@ -51,6 +68,7 @@ export default function RegisterPage() {
               name="first"
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
               required
+              disabled={isLoading}
             />
           </div>
           <div>
@@ -59,6 +77,7 @@ export default function RegisterPage() {
               name="last"
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
               required
+              disabled={isLoading}
             />
           </div>
         </div>
@@ -70,6 +89,7 @@ export default function RegisterPage() {
             name="email"
             className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
             required
+            disabled={isLoading}
           />
         </div>
 
@@ -78,10 +98,11 @@ export default function RegisterPage() {
           <input
             type="password"
             name="password"
-            value={password}                         
+            value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
             required
+            disabled={isLoading}
           />
         </div>
 
@@ -90,20 +111,27 @@ export default function RegisterPage() {
           <input
             type="password"
             name="confirm"
-            value={confirm}                          
+            value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
             required
+            disabled={isLoading}
           />
-          {(liveError || serverError === 'invalid') && (
-            <p className="mt-1 text-sm text-red-600">
-              {liveError ?? 'Please fill all fields and make sure passwords match.'}
-            </p>
-          )}
         </div>
 
-        {/* ปุ่มรู้สถานะ pending และปิดเมื่อรหัสผ่านยังไม่ถูกต้อง */}
-        <SubmitButton disabledExtra={!!liveError} />
+        {(liveError || error) && (
+          <p className="text-sm text-red-600">
+            {liveError || error}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={isLoading || !!liveError}
+          className="mt-2 w-full rounded-lg bg-teal-600 py-2.5 font-medium text-white hover:bg-teal-700 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {isLoading ? 'Creating account...' : 'Create account'}
+        </button>
 
         <p className="text-center text-sm text-slate-600">
           Already have an account?{' '}
