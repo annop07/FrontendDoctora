@@ -1,0 +1,4 @@
+import font from '@/app/fonts/THSarabunNew-normal.ttf';
+doc.addFileToVFS("THSarabunNew.ttf", font);
+doc.addFont("THSarabunNew.ttf", "THSarabunNew", "normal");
+doc.setFont("THSarabunNew");
