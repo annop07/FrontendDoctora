@@ -8,7 +8,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<User> => {
     const response = await AuthService.login({ email, password });
     AuthService.setToken(response.token);
     
@@ -48,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     
     setUser(userData);
+    return userData; // Return user data for role-based redirect
   };
 
   const logout = () => {

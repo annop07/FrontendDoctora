@@ -8,7 +8,7 @@ import { useAuth } from "@/context/auth-context";
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { login, isAuthenticated, isLoading: authLoading, user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -26,10 +26,14 @@ export default function LoginPage() {
     }
 
     // Check if user is already logged in (after auth context loads)
-    if (!authLoading && isAuthenticated) {
-      router.push('/dashboard');
+    if (!authLoading && isAuthenticated && user) {
+      if (user.role === 'ADMIN') {
+        router.push('/admin');
+      } else {
+        router.push('/dashboard');
+      }
     }
-  }, [searchParams, router, isAuthenticated, authLoading]);
+  }, [searchParams, router, isAuthenticated, authLoading, user]);
 
   // Show loading while auth context is initializing
   if (authLoading) {
@@ -52,10 +56,14 @@ export default function LoginPage() {
       const password = formData.get('password') as string;
 
       // Use the AuthContext login method which handles both token and user state
-      await login(email, password);
+      const user = await login(email, password);
       
-      // Redirect will happen automatically via useEffect when isAuthenticated becomes true
-      router.push('/dashboard');
+      // Role-based redirect after successful login
+      if (user && user.role === 'ADMIN') {
+        router.push('/admin');
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
