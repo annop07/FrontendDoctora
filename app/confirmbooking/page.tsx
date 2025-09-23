@@ -5,6 +5,9 @@ import { useEffect, useState } from "react";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 
+// Add Thai font support
+import "jspdf/dist/polyfills.es.js";
+
 interface PatientData {
   prefix?: string;
   firstName?: string;
@@ -58,61 +61,18 @@ export default function ConfirmPage() {
     return String(nextQueue).padStart(3, "0");
   };
 
-  const exportPDF = async (queueNumber: string) => {
-    try {
-      setIsLoading(true);
-
-      const originalElement = document.getElementById("booking-confirm");
-      if (!originalElement) {
-        alert("ไม่พบข้อมูลที่จะสร้าง PDF");
-        return false;
-      }
-
-      const element = originalElement.cloneNode(true) as HTMLElement;
-
-      const logoDiv = document.createElement('div');
-      logoDiv.innerHTML = '<div style="text-align: center; font-size: 28px; font-weight: bold; color: #286B81; margin-bottom: 20px;">doctora</div>';
-      element.insertBefore(logoDiv, element.firstChild);
-
-      const buttons = element.querySelector('.button-container') as HTMLElement;
-      if (buttons) buttons.remove();
-
-      element.style.position = 'absolute';
-      element.style.top = '-9999px';
-      element.style.left = '-9999px';
-      element.style.width = (originalElement as HTMLElement).offsetWidth + 'px';
-      element.style.backgroundColor = 'white';
-      element.style.padding = '20px';
-      document.body.appendChild(element);
-
-      await new Promise(r => setTimeout(r, 300));
-
-      try {
-        const canvas = await html2canvas(element, {
-          scale: 2,
-          backgroundColor: '#ffffff',
-          width: element.scrollWidth,
-          height: element.scrollHeight,
-          windowWidth: element.scrollWidth,
-          windowHeight: element.scrollHeight
-        });
-
-        document.body.removeChild(element);
-        return await createPDFFromCanvas(canvas, queueNumber);
-      } catch {
-        document.body.removeChild(element);
-        return createTextBasedPDF(queueNumber);
-      }
-    } catch {
-      return createTextBasedPDF(queueNumber);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const createPDFFromCanvas = async (canvas: HTMLCanvasElement, queueNumber: string) => {
     try {
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pdf = new jsPDF({ 
+        orientation: "portrait", 
+        unit: "mm", 
+        format: "a4",
+        compress: true
+      });
+
+      // Add Thai font support
+      pdf.addFont('/fonts/THSarabunNew.ttf', 'THSarabunNew', 'normal');
+      pdf.setFont('THSarabunNew');
 
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
@@ -134,70 +94,195 @@ export default function ConfirmPage() {
       const x = (pageWidth - scaledWidth) / 2;
       const y = margin;
 
-      const imgData = canvas.toDataURL("image/png", 0.9);
+      const imgData = canvas.toDataURL("image/png", 1.0);
       pdf.addImage(imgData, "PNG", x, y, scaledWidth, scaledHeight);
 
       pdf.save(`Booking_${queueNumber}.pdf`);
       return true;
-    } catch {
+    } catch (error) {
+      console.error('PDF Canvas Error:', error);
       return false;
     }
   };
 
   const createTextBasedPDF = (queueNumber: string) => {
     try {
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      pdf.setFont("helvetica", "normal");
+      const pdf = new jsPDF({ 
+        orientation: "portrait", 
+        unit: "mm", 
+        format: "a4",
+        compress: true
+      });
 
-      let y = 20;
+      // Try to add Thai font, fallback to default if not available
+      try {
+        pdf.addFont('/fonts/THSarabunNew.ttf', 'THSarabunNew', 'normal');
+        pdf.setFont('THSarabunNew');
+      } catch {
+        pdf.setFont("helvetica", "normal");
+      }
+
+      let y = 25;
+      
+      // Header with logo
+      pdf.setFontSize(24);
+      pdf.setTextColor(40, 107, 129); // #286B81
+      pdf.text("doctora", 105, y, { align: "center" });
+      y += 15;
+      
       pdf.setFontSize(18);
-      pdf.text("APPOINTMENT CONFIRMATION", 105, y, { align: "center" });
-      y += 7;
-      pdf.text("(ยืนยันการนัด)", 105, y, { align: "center" });
+      pdf.setTextColor(0, 0, 0);
+      pdf.text("ใบยืนยันการนัดหมาย", 105, y, { align: "center" });
+      pdf.text("APPOINTMENT CONFIRMATION", 105, y + 7, { align: "center" });
+      y += 25;
+
+      // Queue number box
+      pdf.setFillColor(240, 248, 255);
+      pdf.rect(20, y - 8, 170, 15, 'F');
+      pdf.setFontSize(14);
+      pdf.setTextColor(40, 107, 129);
+      pdf.text(`หมายเลขคิว / Queue Number: ${queueNumber}`, 25, y, { align: "left" });
       y += 20;
 
-      pdf.setFontSize(12);
-      pdf.text(`Queue Number (หมายเลขคิว): ${queue}`, 20, y);
-      y += 15;
-
+      // Patient Information Section
       pdf.setFontSize(14);
-      pdf.text("PATIENT INFORMATION (ข้อมูลผู้ป่วย)", 20, y);
+      pdf.setTextColor(40, 107, 129);
+      pdf.text("ข้อมูลผู้ป่วย / PATIENT INFORMATION", 20, y);
+      y += 3;
+      pdf.setLineWidth(0.5);
+      pdf.line(20, y, 190, y);
       y += 10;
-      pdf.setFontSize(10);
+
+      pdf.setFontSize(11);
+      pdf.setTextColor(0, 0, 0);
 
       const patientFields: [string, string][] = [
-        [`Prefix (คำนำหน้า)`, patient.prefix || "-"],
-        [`First Name (ชื่อ)`, patient.firstName || "-"],
-        [`Last Name (นามสกุล)`, patient.lastName || "-"],
-        [`Gender (เพศ)`, patient.gender || "-"],
-        [`Date of Birth (วัน/เดือน/ปีเกิด)`, patient.dob || "-"],
-        [`Nationality (สัญชาติ)`, patient.nationality || "-"],
-        [`ID Number (เลขบัตรประชาชน)`, patient.citizenId || "-"],
-        [`Phone (เบอร์ติดต่อ)`, patient.phone || "-"],
-        [`Email`, patient.email || "-"]
+        [`คำนำหน้า / Prefix`, patient.prefix || "-"],
+        [`ชื่อ / First Name`, patient.firstName || "-"],
+        [`นามสกุล / Last Name`, patient.lastName || "-"],
+        [`เพศ / Gender`, patient.gender || "-"],
+        [`วัน/เดือน/ปีเกิด / Date of Birth`, patient.dob || "-"],
+        [`สัญชาติ / Nationality`, patient.nationality || "-"],
+        [`เลขบัตรประชาชน / ID Number`, patient.citizenId || "-"],
+        [`เบอร์ติดต่อ / Phone`, patient.phone || "-"],
+        [`อีเมล / Email`, patient.email || "-"]
       ];
 
       patientFields.forEach(([label, value]) => {
-        pdf.text(`${label}: ${value}`, 20, y);
-        y += 6;
+        const text = `${label}: ${value}`;
+        // Handle long text wrapping
+        const lines = pdf.splitTextToSize(text, 170);
+        pdf.text(lines, 25, y);
+        y += lines.length * 6;
       });
 
       y += 10;
 
+      // Appointment Details Section
       pdf.setFontSize(14);
-      pdf.text("APPOINTMENT DETAILS (รายละเอียดการทำนัด)", 20, y);
+      pdf.setTextColor(40, 107, 129);
+      pdf.text("รายละเอียดการนัดหมาย / APPOINTMENT DETAILS", 20, y);
+      y += 3;
+      pdf.line(20, y, 190, y);
       y += 10;
-      pdf.setFontSize(10);
 
-      pdf.text(`Department (แผนก): ${depart || "-"}`, 20, y); y += 6;
-      pdf.text(`Type (ประเภท): ${mapIllnessLabel(illness)}`, 20, y); y += 6;
-      pdf.text(`Doctor (หมอ): ${doctor || "-"}`, 20, y); y += 6;
-      pdf.text(`Date & Time (วันและเวลา): ${selectedDate} ${selectedTime}`, 20, y);
+      pdf.setFontSize(11);
+      pdf.setTextColor(0, 0, 0);
+
+      const appointmentFields: [string, string][] = [
+        [`แผนก / Department`, depart || "-"],
+        [`ประเภท / Type`, mapIllnessLabel(illness)],
+        [`แพทย์ / Doctor`, doctor || "-"],
+        [`วันที่และเวลา / Date & Time`, `${selectedDate} ${selectedTime}`]
+      ];
+
+      appointmentFields.forEach(([label, value]) => {
+        const text = `${label}: ${value}`;
+        const lines = pdf.splitTextToSize(text, 170);
+        pdf.text(lines, 25, y);
+        y += lines.length * 6;
+      });
+
+      // Footer
+      y += 20;
+      pdf.setFontSize(10);
+      pdf.setTextColor(128, 128, 128);
+      pdf.text("กรุณานำใบยืนยันนี้มาแสดงในวันนัดหมาย", 105, y, { align: "center" });
+      pdf.text("Please bring this confirmation on your appointment date", 105, y + 5, { align: "center" });
 
       pdf.save(`Booking_${queueNumber}.pdf`);
       return true;
-    } catch {
+    } catch (error) {
+      console.error('PDF Text Error:', error);
       return false;
+    }
+  };
+
+  const exportPDF = async (queueNumber: string) => {
+    try {
+      setIsLoading(true);
+
+      const originalElement = document.getElementById("booking-confirm");
+      if (!originalElement) {
+        alert("ไม่พบข้อมูลที่จะสร้าง PDF");
+        return false;
+      }
+
+      const element = originalElement.cloneNode(true) as HTMLElement;
+
+      // Add logo and styling
+      const logoDiv = document.createElement('div');
+      logoDiv.innerHTML = `
+        <div style="text-align: center; font-size: 28px; font-weight: bold; color: #286B81; margin-bottom: 20px; font-family: 'Sarabun', Arial, sans-serif;">
+          doctora
+        </div>
+      `;
+      element.insertBefore(logoDiv, element.firstChild);
+
+      // Remove buttons
+      const buttons = element.querySelector('.button-container') as HTMLElement;
+      if (buttons) buttons.remove();
+
+      // Apply Thai font styling
+      element.style.position = 'absolute';
+      element.style.top = '-9999px';
+      element.style.left = '-9999px';
+      element.style.width = (originalElement as HTMLElement).offsetWidth + 'px';
+      element.style.backgroundColor = 'white';
+      element.style.padding = '30px';
+      element.style.fontFamily = "'Sarabun', 'Noto Sans Thai', Arial, sans-serif";
+      element.style.fontSize = '14px';
+      element.style.lineHeight = '1.6';
+      document.body.appendChild(element);
+
+      // Wait for fonts to load
+      await new Promise(r => setTimeout(r, 500));
+
+      try {
+        const canvas = await html2canvas(element, {
+          scale: 3,
+          backgroundColor: '#ffffff',
+          width: element.scrollWidth,
+          height: element.scrollHeight,
+          windowWidth: element.scrollWidth,
+          windowHeight: element.scrollHeight,
+          useCORS: true,
+          allowTaint: true,
+          foreignObjectRendering: true
+        });
+
+        document.body.removeChild(element);
+        return await createPDFFromCanvas(canvas, queueNumber);
+      } catch (canvasError) {
+        console.error('Canvas Error:', canvasError);
+        document.body.removeChild(element);
+        return createTextBasedPDF(queueNumber);
+      }
+    } catch (error) {
+      console.error('Export Error:', error);
+      return createTextBasedPDF(queueNumber);
+    } finally {
+      setIsLoading(false);
     }
   };
 
