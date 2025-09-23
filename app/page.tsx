@@ -80,7 +80,7 @@ export default function LandingPage() {
               className="px-3 py-3 border border-gray-300 rounded-lg text-gray-700 bg-white w-95 text-lg focus:outline-none focus:ring-2 focus:ring-[#286B81] focus:border-[#286B81]"
             >
               <option value="" disabled>
-                เลือกแพทย์ให้ฉัน
+                กรุณาเลือกตัวเลือก
               </option>
               <option value="auto">เลือกแพทย์ให้ฉัน</option>
               <option value="manual">ฉันต้องการเลือกแพทย์เอง</option>

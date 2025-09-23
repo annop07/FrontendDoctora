@@ -21,11 +21,14 @@ interface PatientData {
 }
 
 function mapIllnessLabel(val?: string) {
+  if (!val) return "-";
+  
   const map: Record<string, string> = {
-    auto: "เลือกแพทย์ให้ฉัน",
-    manual: "ฉันต้องการเลือกแพทย์เอง",
+    "auto": "เลือกแพทย์ให้ฉัน",
+    "manual": "ฉันต้องการเลือกแพทย์เอง",
   };
-  return val ? (map[val] ?? val) : "-";
+  
+  return map[val] || val;
 }
 
 export default function ConfirmPage() {
