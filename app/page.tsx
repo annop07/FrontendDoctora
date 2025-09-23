@@ -1,60 +1,39 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, User } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Navbar from "@/components/Navbar";
+import Banner from "@/components/Banner";
+import Footer from "@/components/Footer";
 
 export default function LandingPage() {
   const router = useRouter();
-  const [currentSlide, setCurrentSlide] = useState(0);
   const [selectedOption, setSelectedOption] = useState('');
 
-  const bannerImages = [
-    {
-      id: 1,
-      src: 'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?auto=format&fit=crop&w=1000&q=80',
-      alt: 'Medical Banner 1',
-      title: 'การดูแลสุขภาพที่ดีที่สุด'
-    },
-    {
-      id: 2,
-      src: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?auto=format&fit=crop&w=1000&q=80',
-      alt: 'Medical Banner 2',
-      title: 'แพทย์ผู้เชี่ยวชาญ'
-    },
-    {
-      id: 3,
-      src: 'https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&w=1000&q=80',
-      alt: 'Medical Banner 3',
-      title: 'เทคนโลยีทางการแพทย์'
-    }
-  ];
-
-  // Auto slide
+  // เมื่อผู้ใช้เลือก option ให้เก็บลง sessionStorage.bookingDraft.illness
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % bannerImages.length);
-    }, 3000);
+    if (!selectedOption) return;
+    // อ่าน draft เดิม (ถ้ามี)
+    const draft = JSON.parse(sessionStorage.getItem('bookingDraft') || '{}');
 
-    return () => clearInterval(timer);
-  }, [bannerImages.length]);
+    // เก็บประเภทเป็นค่า auto/manual
+    draft.illness = selectedOption;
 
-  const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % bannerImages.length);
-  };
+    // เคลียร์ค่าที่อาจค้างจากการจองครั้งก่อน (กันแสดงข้อมูลเก่า)
+    draft.selectedDoctor = '';
+    draft.selectedDate   = '';
+    draft.selectedTime   = '';
 
-  const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + bannerImages.length) % bannerImages.length);
-  };
+    sessionStorage.setItem('bookingDraft', JSON.stringify(draft));
+  }, [selectedOption]);
 
   const handleNext = () => {
     if (!selectedOption) {
       alert('กรุณาเลือกตัวเลือกก่อนดำเนินการต่อ');
       return;
     }
-    
-    // ส่งข้อมูลตัวเลือกไปยังหน้า /depart ผ่าน URL parameter
+    // ส่งค่า selection ไปให้หน้า /depart ด้วย (เพื่อแสดงยืนยันบนหน้านั้น)
     router.push(`/depart?selection=${selectedOption}`);
   };
 
@@ -81,56 +60,8 @@ export default function LandingPage() {
 
       {/* Main Content */}
       <main className="max-w-5xl mx-auto px-6 py-6">
-        {/* Banner Section */}
-        <div className="relative mb-8 rounded-xl overflow-hidden shadow-lg">
-          <div className="relative h-64 bg-gray-400">
-            {bannerImages.map((image, index) => (
-              <div
-                key={image.id}
-                className={`absolute inset-0 transition-opacity duration-500 ${
-                  index === currentSlide ? 'opacity-100' : 'opacity-0'
-                }`}
-              >
-                <img
-                  src={image.src}
-                  alt={image.alt}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
-                  <h2 className="text-white text-4xl font-bold">{image.title}</h2>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Navigation Arrows */}
-          <button
-            onClick={prevSlide}
-            className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-80 hover:bg-opacity-100 p-2 rounded-full shadow-lg transition-all"
-          >
-            <ChevronLeft className="w-5 h-5 text-gray-700" />
-          </button>
-
-          <button
-            onClick={nextSlide}
-            className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-80 hover:bg-opacity-100 p-2 rounded-full shadow-lg transition-all"
-          >
-            <ChevronRight className="w-5 h-5 text-gray-700" />
-          </button>
-
-          {/* Slide Indicators */}
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
-            {bannerImages.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrentSlide(index)}
-                className={`w-3 h-3 rounded-full transition-all ${
-                  index === currentSlide ? 'bg-white' : 'bg-white bg-opacity-50'
-                }`}
-              />
-            ))}
-          </div>
-        </div>
+        {/* Banner Component */}
+        <Banner />
 
         {/* Appointment Section */}
         <div className="max-w-2xl mx-auto text-center">
@@ -151,12 +82,8 @@ export default function LandingPage() {
               <option value="" disabled>
                 เลือกแพทย์ให้ฉัน
               </option>
-              <option value="auto">
-                เลือกแพทย์ให้ฉัน
-              </option>
-              <option value="manual">
-                ฉันต้องการเลือกแพทย์เอง
-              </option>
+              <option value="auto">เลือกแพทย์ให้ฉัน</option>
+              <option value="manual">ฉันต้องการเลือกแพทย์เอง</option>
             </select>
           </div>
 
@@ -174,22 +101,9 @@ export default function LandingPage() {
           </button>
         </div>
       </main>
-      <footer className="bg-white border-t mt-12">
-        <div className="max-w-5xl mx-auto px-6 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <h3 className="text-base font-bold text-gray-800 mb-3">Footer website</h3>
-              <ul className="space-y-1 text-sm text-gray-600">
-                <li><a href="#" className="hover:text-gray-800 transition-colors">About Us</a></li>
-                <li><a href="#" className="hover:text-gray-800 transition-colors">Contact Us</a></li>
-                <li><a href="#" className="hover:text-gray-800 transition-colors">FAQs</a></li>
-                <li><a href="#" className="hover:text-gray-800 transition-colors">Terms of service</a></li>
-                <li><a href="#" className="hover:text-gray-800 transition-colors">privacy policy</a></li>
-              </ul>
-            </div>
-    </div>
-        </div>
-      </footer>
+
+      {/* Footer Component */}
+      <Footer />
     </div>
   );
 }

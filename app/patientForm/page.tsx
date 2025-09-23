@@ -59,7 +59,7 @@ const PatientForm = () => {
                                 <option value="หญิง">หญิง</option>
                                 <option value="อื่นๆ">อื่นๆ</option>
                             </select>
-                            <input name="dob" type="date" placeholder="DD/MM/YYYY" className="rounded-md border border-gray-300 px-3 py-2" required />
+                            <input name="dob" type="date" max={new Date(Date.now() - 86400000).toISOString().split("T")[0]}  placeholder="วัน/เดือน/ปีเกิด" className="rounded-md border border-gray-300 px-3 py-2" required />
                             <input name="nationality" placeholder="สัญชาติ" className="rounded-md border border-gray-300 px-3 py-2" required/>
             <input name="citizenId" placeholder="เลขบัตรประชาชน" className="rounded-md border border-gray-300 px-3 py-2" inputMode="numeric" pattern="[0-9]{13}" title="กรอกตัวเลข 13 หลัก" required/>
                             <input name="phone" placeholder="เบอร์โทรศัพท์" className="rounded-md border border-gray-300 px-3 py-2" inputMode="tel" pattern="[0-9]{9,10}" title="กรอกตัวเลข 9-10 หลัก" autoComplete="tel" required />

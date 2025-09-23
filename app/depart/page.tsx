@@ -10,52 +10,64 @@ const items = [
 ];
 
 export default function DepartPage() {
-  const [selected, setSelected] = useState<string>("กระดูกและข้อ"); // default เลือกอันแรก
-  const [userSelection, setUserSelection] = useState<string>("");
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // รับข้อมูลตัวเลือกจาก URL parameter
+  const [selected, setSelected] = useState<string>("กระดูกและข้อ"); // default
+  const [userSelection, setUserSelection] = useState<string>("");    // "auto" | "manual"
+
+  // รับ selection จาก URL + sync เข้า sessionStorage.bookingDraft
   useEffect(() => {
-    const selection = searchParams.get('selection');
+    const selection = searchParams.get("selection") || "";
     if (selection) {
       setUserSelection(selection);
+      const draft = JSON.parse(sessionStorage.getItem("bookingDraft") || "{}");
+      draft.illness = selection; // เก็บประเภทไว้ให้ Confirm แสดง "ประเภท :"
+      sessionStorage.setItem("bookingDraft", JSON.stringify(draft));
     }
   }, [searchParams]);
 
+  // โหลด depart เดิมถ้ามี (กันผู้ใช้ย้อนกลับมาแล้วค่าหาย)
+  useEffect(() => {
+    const draft = JSON.parse(sessionStorage.getItem("bookingDraft") || "{}");
+    if (draft.depart && typeof draft.depart === "string") {
+      setSelected(draft.depart);
+    }
+  }, []);
+
   const handleNext = () => {
-    console.log("แผนกที่เลือก:", selected);
-    console.log("ตัวเลือกของผู้ใช้:", userSelection);
-    
-    // กำหนดเส้นทางตามตัวเลือกที่ผู้ใช้เลือกในหน้าแรก
-    if (userSelection === 'auto') {
-      // เลือกแพทย์ให้ฉัน -> ไปหน้า /booking
+    // อัปเดต bookingDraft ก่อนเปลี่ยนหน้า
+    const draft = JSON.parse(sessionStorage.getItem("bookingDraft") || "{}");
+    draft.depart = selected;                 // ให้ Confirm แสดง "แผนก :"
+    if (userSelection) draft.illness = userSelection; // เผื่อหน้าแรกยังไม่เขียน
+    sessionStorage.setItem("bookingDraft", JSON.stringify(draft));
+
+    // ไปหน้าต่อไปตามตัวเลือกหน้าแรก
+    if (userSelection === "auto") {
       router.push(`/booking?depart=${encodeURIComponent(selected)}&selection=${userSelection}`);
-    } else if (userSelection === 'manual') {
-      // ฉันต้องการเลือกแพทย์เอง -> ไปหน้า /AllDoctor
+    } else if (userSelection === "manual") {
       router.push(`/AllDoctor?depart=${encodeURIComponent(selected)}&selection=${userSelection}`);
     } else {
-      // ถ้าไม่มีข้อมูลจากหน้าแรก ให้ไปหน้า /booking เป็นค่าเริ่มต้น
       router.push(`/booking?depart=${encodeURIComponent(selected)}`);
     }
   };
 
   const handleBack = () => {
-    router.push("/#"); // ลิงก์กลับหน้าแรก
+    router.push("/"); // กลับหน้าแรก
   };
 
   return (
     <>
       <Navbar />
 
-      <div className="max-w-3xl mx-auto px-4 py-6 mt-20 rounded-md shadow-2xl relative pb-20">
+      <div className="max-w-3xl mx-auto px-4 py-6 mt-20 rounded-md shadow-2xl relative pb-20 bg-white">
         <h2 className="text-center text-2xl font-bold mb-4">เลือกแผนกที่ต้องการ</h2>
 
-        {/* แสดงตัวเลือกที่ผู้ใช้เลือกมา (ถ้ามี) */}
+        {/* แสดงตัวเลือกประเภทจากหน้าแรก (ถ้ามี) */}
         {userSelection && (
           <div className="mb-4 p-3 bg-blue-50 rounded-md border border-blue-200">
             <p className="text-sm text-blue-700 text-center">
-              ตัวเลือกของคุณ : {userSelection === 'auto' ? 'เลือกแพทย์ให้ฉัน' : 'ฉันต้องการเลือกแพทย์เอง'}
+              ตัวเลือกของคุณ : {userSelection === "auto" ? "เลือกแพทย์ให้ฉัน" : "ฉันต้องการเลือกแพทย์เอง"}
             </p>
           </div>
         )}

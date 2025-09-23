@@ -25,7 +25,7 @@ export default function BookingPage() {
     if (!depart && d.depart) setDepart(d.depart);
     if (d.selectedTime) setSelectedTime(d.selectedTime);
     if (d.selectedDate) setSelectedDate(new Date(d.selectedDate));
-    if (d.illness) setIllness(d.illness);
+    if (d.illness) setIllness(" ");
   }, []);
 
   useEffect(() => {

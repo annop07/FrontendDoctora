@@ -1,56 +1,70 @@
 "use client";
 
 import Link from "next/link";
+import Banner from "@/components/Banner";
+import Footer from "@/components/Footer";
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 pb-20">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white/90 shadow-xl backdrop-blur">
-        <div className="p-6 pb-2">
+    <div className="min-h-screen bg-gray-50">
+      {/* Header with Logo */}
+      <header className="bg-white shadow-sm">
+        <div className="max-w-5xl mx-auto px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-teal-500" />
-            <div className="font-semibold text-lg">Doctora</div>
+            <div className="h-8 w-8 rounded-lg bg-teal-500" />
+            <h1 className="text-xl font-bold text-gray-800">Logo</h1>
           </div>
-          <h1 className="mt-6 text-2xl font-semibold tracking-tight">Sign in</h1>
-          <p className="mt-1 text-slate-500">Welcome back</p>
         </div>
+      </header>
 
-        <form className="p-6 pt-2 space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Email</label>
-            <input
-              type="email"
-              placeholder="Enter your email"
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-              required
-            />
+      {/* Main Content */}
+      <main className="max-w-5xl mx-auto px-6 py-6">
+        {/* Banner Component */}
+        <Banner />
+
+        {/* Login Form Section */}
+        <div className="max-w-md mx-auto mt-8">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">ลงชื่อเข้าใช้</h2>
           </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Password</label>
-            <input
-              type="password"
-              placeholder="Enter your password"
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-              required
-            />
-          </div>
+          <form className="space-y-4">
+            <div>
+              <input
+                type="email"
+                placeholder="email"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                required
+              />
+            </div>
 
-          <button
-            type="submit"
-            className="mt-2 w-full rounded-lg bg-sky-600 py-2.5 font-medium text-white hover:bg-sky-700"
-          >
-            Sign in
-          </button>
+            <div>
+              <input
+                type="password"
+                placeholder="password"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                required
+              />
+            </div>
 
-          <p className="text-center text-sm text-slate-600">
-            Don’t have an account?{" "}
-            <Link href="/register" className="text-sky-700 font-medium hover:underline">
-              Create account
-            </Link>
-          </p>
-        </form>
-      </div>
+            <div className="text-center">
+              <p className="text-red-500 text-sm mb-4">
+                ยังไม่มีบัญชีหรือไม่? <Link href="/register" className="hover:underline">คลิกลงชื่อ</Link>
+              </p>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+            >
+              สร้างบัญชีของฉัน
+            </button>
+          </form>
+        </div>
+      </main>
+
+      {/* Footer Component */}
+      <Footer />
     </div>
   );
 }

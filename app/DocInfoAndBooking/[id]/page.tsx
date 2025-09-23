@@ -1,28 +1,33 @@
 'use client';
+import { useSearchParams, useParams } from "next/navigation";
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar, User, GraduationCap, Languages, Clock } from 'lucide-react';
+import Navbar from '@/components/Navbar';
+import { useRouter } from "next/navigation";
 
-const DoctorDetailWireframes = ({ doctorId = 1 }) => {
+const DoctorDetailWireframes = () => {
+  const router = useRouter();
+
   // States for UI
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [currentWeek, setCurrentWeek] = useState(0);
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
   
   // States for data loading
-  const [doctorData, setDoctorData] = useState(null);
-  const [weeklySchedule, setWeeklySchedule] = useState([]);
+  const [doctorData, setDoctorData] = useState<any>(null);
+  const [weeklySchedule, setWeeklySchedule] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Helper functions for date calculations
-  const getStartOfWeek = (date) => {
+  const getStartOfWeek = (date: Date) => {
     const d = new Date(date);
     const day = d.getDay();
     const diff = d.getDate() - day;
     return new Date(d.setDate(diff));
   };
   
-  const getWeekDates = (startDate) => {
-    const dates = [];
+  const getWeekDates = (startDate: Date) => {
+    const dates: Date[] = [];
     for (let i = 0; i < 7; i++) {
       const date = new Date(startDate);
       date.setDate(startDate.getDate() + i);
@@ -35,6 +40,33 @@ const DoctorDetailWireframes = ({ doctorId = 1 }) => {
     const startOfSelectedWeek = getStartOfWeek(selectedDate);
     return getWeekDates(startOfSelectedWeek);
   };
+
+  // อ่าน :id จาก /DocInfoAndBooking/[id]
+  const params = useParams();
+  const routeId = Number(params?.id) || 1;
+
+  // อ่านข้อมูลที่ส่งมาจากหน้า AllDoctor ผ่าน query string
+  const sp = useSearchParams();
+  const qName        = sp.get("name") || "";
+  const qDepartment  = sp.get("department") || "";
+  const qGender      = sp.get("gender") || "";
+  const qEducation   = sp.get("education") || "";
+  const qLanguages   = (sp.get("languages") || "").split(",").map(s => s.trim()).filter(Boolean);
+
+  // ถ้ามีพารามิเตอร์มา จะสร้าง doctor จากค่าพวกนี้
+  const doctorFromParams = (qName || qDepartment || qGender || qEducation || qLanguages.length)
+    ? {
+        id: routeId,
+        name: qName || "ไม่ระบุชื่อ",
+        department: qDepartment || "ไม่ระบุแผนก",
+        gender: (qGender as "ชาย" | "หญิง") || "ชาย",
+        education: qEducation || "ไม่ระบุการศึกษา",
+        languages: qLanguages.length ? qLanguages : ["ไทย"],
+        specialties: "",
+        availableTimes: ["9:00-10:00"],
+        nextAvailableTime: "9:00-10:00"
+      }
+    : null;
 
   // Mock doctors data - ต้องตรงกับหน้า search
   const mockDoctors = [
@@ -95,53 +127,54 @@ const DoctorDetailWireframes = ({ doctorId = 1 }) => {
     }
   ];
 
-  // หาข้อมูลหมอจาก ID
-  const doctor = mockDoctors.find(doc => doc.id === parseInt(doctorId)) || mockDoctors[0];
+  // หาข้อมูลหมอจาก ID (ถ้ามีค่าจาก query มาก็ใช้เลย ไม่งั้นหาใน mock)
+  const doctor = doctorFromParams
+    ? doctorFromParams
+    : (mockDoctors.find(doc => doc.id === routeId) || mockDoctors[0]);
 
-  // Mock schedule data สำหรับหมอแต่ละคน - ในระบบจริงจะดึงจาก API
-  const generateScheduleForDoctor = (doctorId, weekDates) => {
-    // ใช้ seed จาก doctorId และวันที่เพื่อให้ได้ผลลัพธ์เหมือนกันทุกครั้ง
-    const getSeedForDate = (doctorId, date) => {
+  // สร้างตารางเวลาประจำสัปดาห์ (mock)
+  const generateScheduleForDoctor = (doctorId: number, weekDates: Date[]) => {
+    const getSeedForDate = (doctorId: number, date: Date) => {
       const dateString = date.toISOString().split('T')[0];
       let hash = 0;
       const str = `${doctorId}-${dateString}`;
       for (let i = 0; i < str.length; i++) {
         const char = str.charCodeAt(i);
         hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // Convert to 32bit integer
+        hash = hash & hash;
       }
       return Math.abs(hash) % 100;
     };
 
-    const schedules = {
-      1: [ // นพ. กฤต (กระดูกและข้อ)
+    const schedules: any = {
+      1: [
         { day: 'อาทิตย์', dayOfWeek: 0, slots: [] },
-        { day: 'จันทร์', dayOfWeek: 1, slots: (date) => [
+        { day: 'จันทร์', dayOfWeek: 1, slots: (date: Date) => [
           { id: 1, time: '09:00-10:00', available: true, appointmentId: null },
           { id: 2, time: '10:00-11:00', available: getSeedForDate(doctorId, date) > 30, appointmentId: getSeedForDate(doctorId, date) > 30 ? null : 123 },
           { id: 3, time: '13:00-14:00', available: true, appointmentId: null }
         ]},
-        { day: 'อังคาร', dayOfWeek: 2, slots: (date) => [
+        { day: 'อังคาร', dayOfWeek: 2, slots: (date: Date) => [
           { id: 4, time: '09:00-10:00', available: getSeedForDate(doctorId, date) > 20, appointmentId: getSeedForDate(doctorId, date) > 20 ? null : 456 },
           { id: 5, time: '13:00-14:00', available: true, appointmentId: null }
         ]},
-        { day: 'พุธ', dayOfWeek: 3, slots: (date) => [
+        { day: 'พุธ', dayOfWeek: 3, slots: (date: Date) => [
           { id: 6, time: '09:00-10:00', available: getSeedForDate(doctorId, date) > 40, appointmentId: getSeedForDate(doctorId, date) > 40 ? null : 789 }
         ]},
         { day: 'พฤหัสบดี', dayOfWeek: 4, slots: [] },
-        { day: 'ศุกร์', dayOfWeek: 5, slots: (date) => [
+        { day: 'ศุกร์', dayOfWeek: 5, slots: (date: Date) => [
           { id: 7, time: '09:00-10:00', available: true, appointmentId: null },
           { id: 8, time: '13:00-14:00', available: getSeedForDate(doctorId, date) > 30, appointmentId: getSeedForDate(doctorId, date) > 30 ? null : 101 }
         ]},
         { day: 'เสาร์', dayOfWeek: 6, slots: [] }
       ],
-      2: [ // นพ.รีโม (หัวใจและทรวงอก)
+      2: [
         { day: 'อาทิตย์', dayOfWeek: 0, slots: [] },
         { day: 'จันทร์', dayOfWeek: 1, slots: () => [
           { id: 9, time: '10:00-11:00', available: true, appointmentId: null },
           { id: 10, time: '14:00-15:00', available: true, appointmentId: null }
         ]},
-        { day: 'อังคาร', dayOfWeek: 2, slots: (date) => [
+        { day: 'อังคาร', dayOfWeek: 2, slots: (date: Date) => [
           { id: 11, time: '10:00-11:00', available: getSeedForDate(doctorId, date) > 50, appointmentId: getSeedForDate(doctorId, date) > 50 ? null : 789 }
         ]},
         { day: 'พุธ', dayOfWeek: 3, slots: () => [
@@ -159,7 +192,7 @@ const DoctorDetailWireframes = ({ doctorId = 1 }) => {
     const baseSchedule = schedules[doctorId] || schedules[1];
     
     // Map schedule to current week dates
-    return baseSchedule.map((dayData, index) => ({
+    return baseSchedule.map((dayData: any, index: number) => ({
       ...dayData,
       date: weekDates[index].toISOString().split('T')[0],
       dateObj: weekDates[index],
@@ -169,15 +202,10 @@ const DoctorDetailWireframes = ({ doctorId = 1 }) => {
 
   const mockWeeklySchedule = generateScheduleForDoctor(doctor.id, getCurrentWeekDates());
 
-  // ฟังก์ชันสำหรับดึงข้อมูลหมอ (เชื่อม API)
-  const fetchDoctorData = async (doctorId) => {
+  // ฟังก์ชันสำหรับดึงข้อมูลหมอ (ตัวอย่าง)
+  const fetchDoctorData = async (doctorId: number) => {
     setLoading(true);
     try {
-      // const response = await fetch(`/api/doctors/${doctorId}`);
-      // const data = await response.json();
-      // setDoctorData(data);
-      
-      // Mock delay
       setTimeout(() => {
         setDoctorData(doctor);
         setLoading(false);
@@ -188,14 +216,9 @@ const DoctorDetailWireframes = ({ doctorId = 1 }) => {
     }
   };
 
-  // ฟังก์ชันสำหรับดึงตารางเวลา (เชื่อม API)
-  const fetchWeeklySchedule = async (doctorId, weekOffset = 0) => {
+  // ฟังก์ชันสำหรับดึงตารางเวลา (ตัวอย่าง)
+  const fetchWeeklySchedule = async (doctorId: number, weekOffset = 0) => {
     try {
-      // const response = await fetch(`/api/doctors/${doctorId}/schedule?week=${weekOffset}`);
-      // const scheduleData = await response.json();
-      // setWeeklySchedule(scheduleData);
-      
-      // Mock data for now
       const weekDates = getCurrentWeekDates();
       setWeeklySchedule(generateScheduleForDoctor(doctorId, weekDates));
     } catch (error) {
@@ -203,55 +226,43 @@ const DoctorDetailWireframes = ({ doctorId = 1 }) => {
     }
   };
 
-  // ฟังก์ชันสำหรับจัดการเมื่อเปลี่ยนวันที่
-  const handleDateChange = (dateString) => {
+  // เปลี่ยนวันที่
+  const handleDateChange = (dateString: string) => {
     const newDate = new Date(dateString);
     setSelectedDate(newDate);
-    
-    // Reset current week เพราะเราจะใช้ selectedDate เป็นฐานในการคำนวณแล้ว
     setCurrentWeek(0);
-    setSelectedTimeSlot(null); // Clear selected time slot
+    setSelectedTimeSlot(null);
   };
 
-  // ฟังก์ชันสำหรับจองเวลา (เชื่อม API)
-  const handleTimeSlotClick = async (day, slotData) => {
+  // เลือก time slot
+  const handleTimeSlotClick = (day: string, slotData: { time: string, available: boolean }) => {
     if (slotData.available) {
       setSelectedTimeSlot(`${day}-${slotData.time}`);
-      // สามารถเพิ่ม pre-booking logic ได้ที่นี่
     }
   };
 
-  // ฟังก์ชันสำหรับยืนยันการจอง - นำไปหน้า patient form
+  // ✅ ยืนยันการจอง —> เก็บลง sessionStorage.bookingDraft แล้วไป /confirm
   const handleBookingConfirm = () => {
     if (!selectedTimeSlot) return;
-    
-    // เตรียมข้อมูลที่จะส่งไปหน้า patient form
-    const bookingData = {
-      doctorId: doctor.id,
-      doctorName: doctor.name,
-      department: doctor.department,
-      date: selectedDate.toISOString().split('T')[0],
-      timeSlot: selectedTimeSlot,
-      selectedDate: selectedDate.toLocaleDateString('th-TH', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      })
-    };
-    
-    // บันทึกข้อมูลใน localStorage เพื่อส่งต่อไปหน้าถัดไป
-    localStorage.setItem('bookingData', JSON.stringify(bookingData));
-    
-    // นำทางไปหน้า patientForm
-    window.location.href = '/patientForm';
+  
+    const timeLabel = selectedTimeSlot.includes('-')
+      ? selectedTimeSlot.split('-').slice(1).join('-')
+      : selectedTimeSlot;
+  
+    const draft = JSON.parse(sessionStorage.getItem("bookingDraft") || "{}");
+    draft.selectedDoctor = doctor.name;              // ✅ ชื่อหมอ
+    draft.depart = doctor.department;                // กันเผื่อค่า depart หาย
+    draft.selectedDate = selectedDate.toISOString(); // ✅ วัน
+    draft.selectedTime = timeLabel;                  // ✅ เวลา
+    sessionStorage.setItem("bookingDraft", JSON.stringify(draft));
+  
+    router.push("/patientForm");
   };
+  
 
   const nextWeek = () => {
     const newWeek = currentWeek + 1;
     setCurrentWeek(newWeek);
-    
-    // อัปเดตวันที่ตามสัปดาห์ใหม่ - เพิ่ม 7 วันจากวันที่ปัจจุบันที่เลือก
     const newDate = new Date(selectedDate);
     newDate.setDate(selectedDate.getDate() + 7);
     setSelectedDate(newDate);
@@ -261,9 +272,7 @@ const DoctorDetailWireframes = ({ doctorId = 1 }) => {
   const prevWeek = () => {
     const newWeek = Math.max(0, currentWeek - 1);
     setCurrentWeek(newWeek);
-    
-    // อัปเดตวันที่ตามสัปดาห์ใหม่ - ลบ 7 วันจากวันที่ปัจจุบันที่เลือก
-    if (currentWeek > 0) { // ป้องกันไม่ให้ย้อนกลับไปในอดีต
+    if (currentWeek > 0) {
       const newDate = new Date(selectedDate);
       newDate.setDate(selectedDate.getDate() - 7);
       setSelectedDate(newDate);
@@ -271,28 +280,11 @@ const DoctorDetailWireframes = ({ doctorId = 1 }) => {
     setSelectedTimeSlot(null);
   };
 
-  // useEffect สำหรับดึงข้อมูลเมื่อโหลดหน้า
-  // useEffect(() => {
-  //   const doctorId = router.query.doctorId; // จาก Next.js router
-  //   if (doctorId) {
-  //     fetchDoctorData(doctorId);
-  //     fetchWeeklySchedule(doctorId, 0);
-  //   }
-  // }, [router.query.doctorId]);
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Navigation Bar */}
-      <nav className="w-full bg-gray-100 shadow-md px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <ChevronLeft className="w-6 h-6 text-gray-600 cursor-pointer hover:text-gray-800" />
-          <span className="text-lg font-bold">Doctora</span>
-        </div>
-      </nav>
-
+    <div >
       {/* Logo Section */}
       <div className="bg-white px-6 py-4 border-b">
-        <h1 className="text-2xl font-bold text-gray-800">Logo</h1>
+        <Navbar />
       </div>
 
       <div className="container mx-auto px-6 py-6 space-y-6">
@@ -351,7 +343,7 @@ const DoctorDetailWireframes = ({ doctorId = 1 }) => {
             </div>
             <div className="text-gray-600">
               <div className="flex flex-wrap gap-2">
-                {doctor.languages.map((lang, index) => (
+                {doctor.languages.map((lang: string, index: number) => (
                   <span key={index} className="px-3 py-1 bg-gray-100 rounded-full text-sm font-medium">
                     {lang}
                   </span>
@@ -416,7 +408,7 @@ const DoctorDetailWireframes = ({ doctorId = 1 }) => {
               {/* Schedule Grid */}
               <div className="overflow-x-auto">
                 <div className="grid grid-cols-7 gap-2 min-w-full">
-                  {mockWeeklySchedule.map((dayData, index) => {
+                  {mockWeeklySchedule.map((dayData: any, index: number) => {
                     const isToday = dayData.dateObj && dayData.dateObj.toDateString() === new Date().toDateString();
                     const isSelected = dayData.dateObj && dayData.dateObj.toDateString() === selectedDate.toDateString();
                     
@@ -439,7 +431,7 @@ const DoctorDetailWireframes = ({ doctorId = 1 }) => {
                         {/* Time Slots */}
                         <div className="p-3 space-y-2 min-h-[200px]">
                           {dayData.slots && dayData.slots.length > 0 ? (
-                            dayData.slots.map((slot, slotIndex) => {
+                            dayData.slots.map((slot: any, slotIndex: number) => {
                               const isSlotSelected = selectedTimeSlot === `${dayData.day}-${slot.time}`;
                               
                               return (
