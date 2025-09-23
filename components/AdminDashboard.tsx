@@ -145,8 +145,8 @@ const AdminDashboard = () => {
   try {
     console.log('Loading doctors from:', `${API_BASE_URL}/api/doctors`);
     
-    // Use public endpoint - no authentication required
-    const response = await fetch(`${API_BASE_URL}/api/doctors`);
+    // For admin dashboard, include inactive doctors by adding the parameter
+    const response = await fetch(`${API_BASE_URL}/api/doctors?includeInactive=true`);
     
     console.log('Doctors response status:', response.status);
     console.log('Doctors response headers:', Object.fromEntries(response.headers.entries()));
@@ -509,7 +509,7 @@ const loadSpecialties = async () => {
     );
   };
 
-const CreateDoctorForm = () => {
+  const CreateDoctorForm = () => {
   const [formData, setFormData] = useState({
     userId: '',
     specialtyId: '',
@@ -522,7 +522,11 @@ const CreateDoctorForm = () => {
   const [submitError, setSubmitError] = useState('');
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
-  const validateForm = () => {
+  // Helper function to check if user is already a doctor
+  const checkExistingDoctorAssignment = (userId: string) => {
+    const selectedUser = users.find(user => user.id.toString() === userId);
+    return doctors.find(doctor => doctor.email === selectedUser?.email);
+  };  const validateForm = () => {
     const errors: Record<string, string> = {};
 
     if (!formData.userId) {
@@ -556,15 +560,20 @@ const CreateDoctorForm = () => {
     setLoading(true);
     
     try {
-      // Check if doctor already exists in the selected specialty
+      // Check if user is already assigned as a doctor
       const selectedUser = users.find(user => user.id.toString() === formData.userId);
-      const existingDoctor = doctors.find(doctor => 
-        doctor.email === selectedUser?.email && 
-        doctor.specialty.id.toString() === formData.specialtyId
-      );
+      const existingDoctorAssignment = checkExistingDoctorAssignment(formData.userId);
 
-      if (existingDoctor) {
-        setSubmitError(`Doctor ${selectedUser?.firstName} ${selectedUser?.lastName} is already assigned to this specialty.`);
+      if (existingDoctorAssignment) {
+        const assignedSpecialty = specialties.find(s => s.id === existingDoctorAssignment.specialty.id);
+        
+        // Check if trying to assign to the same specialty
+        if (existingDoctorAssignment.specialty.id.toString() === formData.specialtyId) {
+          setSubmitError(`Doctor ${selectedUser?.firstName} ${selectedUser?.lastName} is already assigned to this specialty: ${assignedSpecialty?.name || existingDoctorAssignment.specialty.name}.`);
+        } else {
+          // Trying to assign to a different specialty
+          setSubmitError(`Doctor ${selectedUser?.firstName} ${selectedUser?.lastName} is already assigned to another specialty: ${assignedSpecialty?.name || existingDoctorAssignment.specialty.name}. A doctor can only be assigned to one specialty at a time. Please choose a different user.`);
+        }
         setLoading(false);
         return;
       }
@@ -609,8 +618,16 @@ const CreateDoctorForm = () => {
             if (errorData.message && 
                 (errorData.message.toLowerCase().includes('already exists') || 
                  errorData.message.toLowerCase().includes('duplicate') ||
-                 errorData.message.toLowerCase().includes('already assigned'))) {
-              setSubmitError(`This user is already registered as a doctor in the selected specialty. Please choose a different user or specialty.`);
+                 errorData.message.toLowerCase().includes('already assigned') ||
+                 errorData.message.toLowerCase().includes('already registered') ||
+                 errorData.message.toLowerCase().includes('another specialty'))) {
+              
+              // More specific error message based on the type of conflict
+              if (errorData.message.toLowerCase().includes('another specialty')) {
+                setSubmitError(`This user is already registered as a doctor in another specialty. A doctor can only be assigned to one specialty at a time. Please choose a different user.`);
+              } else {
+                setSubmitError(`This user is already registered as a doctor. Please choose a different user or check existing doctor assignments.`);
+              }
             } else if (errorData.message) {
               setSubmitError(errorData.message);
             } else if (errorData.errors) {
@@ -634,8 +651,10 @@ const CreateDoctorForm = () => {
       if (errorMessage.toLowerCase().includes('fetch')) {
         setSubmitError('Network error: Unable to connect to server. Please check your connection and try again.');
       } else if (errorMessage.toLowerCase().includes('duplicate') || 
-                 errorMessage.toLowerCase().includes('already exists')) {
-        setSubmitError('This doctor already exists in the system. Please check and try with different details.');
+                 errorMessage.toLowerCase().includes('already exists') ||
+                 errorMessage.toLowerCase().includes('another specialty') ||
+                 errorMessage.toLowerCase().includes('already assigned')) {
+        setSubmitError('This doctor already exists in the system or is assigned to another specialty. Please check existing assignments and try with different details.');
       } else {
         setSubmitError(`Error creating doctor: ${errorMessage}`);
       }
@@ -683,6 +702,19 @@ const CreateDoctorForm = () => {
                 No users with DOCTOR role found. Please create a user with DOCTOR role first.
               </p>
             )}
+            {formData.userId && (() => {
+              const selectedUser = users.find(user => user.id.toString() === formData.userId);
+              const existingAssignment = checkExistingDoctorAssignment(formData.userId);
+              if (existingAssignment) {
+                const assignedSpecialty = specialties.find(s => s.id === existingAssignment.specialty.id);
+                return (
+                  <p className="text-sm text-orange-600 mt-1 bg-orange-50 p-2 rounded border border-orange-200">
+                    ⚠️ Warning: {selectedUser?.firstName} {selectedUser?.lastName} is already assigned to {assignedSpecialty?.name || existingAssignment.specialty.name} specialty.
+                  </p>
+                );
+              }
+              return null;
+            })()}
           </div>
 
           <div>
