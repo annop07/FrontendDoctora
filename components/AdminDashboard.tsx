@@ -3,7 +3,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Users, UserPlus, Stethoscope, Building, Plus, Edit, Trash2, Search } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 
@@ -50,6 +50,9 @@ const AdminDashboard = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [error, setError] = useState<string>('');
   const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  
+  // Ref to track doctor counts per specialty to avoid infinite loops
+  const previousDoctorCountsRef = useRef<Map<number, number>>(new Map());
 
   // Use environment variable or fallback to localhost
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082';
@@ -57,6 +60,53 @@ const AdminDashboard = () => {
   useEffect(() => {
     checkBackendConnection();
   }, []);
+
+  // Update specialty doctor counts whenever doctors array changes
+  useEffect(() => {
+    if (doctors.length > 0 && specialties.length > 0) {
+      let hasChanged = false;
+      const currentCounts = new Map<number, number>();
+      
+      // Calculate current doctor counts for each specialty
+      specialties.forEach(specialty => {
+        const activeDocotrsCount = doctors.filter(doctor => 
+          doctor.specialty.id === specialty.id && doctor.isActive
+        ).length;
+        currentCounts.set(specialty.id, activeDocotrsCount);
+        
+        // Check if count changed for this specialty
+        const previousCount = previousDoctorCountsRef.current.get(specialty.id);
+        if (previousCount !== activeDocotrsCount) {
+          hasChanged = true;
+        }
+      });
+      
+      // Only update if there's actually a change
+      if (hasChanged) {
+        const updatedSpecialties = specialties.map(specialty => ({
+          ...specialty,
+          doctorCount: currentCounts.get(specialty.id) || 0
+        }));
+        
+        setSpecialties(updatedSpecialties);
+        previousDoctorCountsRef.current = currentCounts;
+      }
+    }
+  }, [doctors]); // Only depend on doctors array
+
+  // Helper function to update specialty doctor counts based on current doctors
+  const updateSpecialtyDoctorCounts = () => {
+    const updatedSpecialties = specialties.map(specialty => {
+      const activeDocotrsCount = doctors.filter(doctor => 
+        doctor.specialty.id === specialty.id && doctor.isActive
+      ).length;
+      return {
+        ...specialty,
+        doctorCount: activeDocotrsCount
+      };
+    });
+    setSpecialties(updatedSpecialties);
+  };
 
   const checkBackendConnection = async () => {
     try {
@@ -133,6 +183,13 @@ const AdminDashboard = () => {
       
       // Load users with DOCTOR role
       await loadUsers();
+      
+      // Force a count recalculation after initial load
+      setTimeout(() => {
+        if (doctors.length > 0 && specialties.length > 0) {
+          updateSpecialtyDoctorCounts();
+        }
+      }, 500);
     } catch (error) {
       console.error('Error loading data:', error);
       setError((error as Error).message);
@@ -605,7 +662,17 @@ const loadSpecialties = async () => {
         console.log('Success response:', result);
         alert('Doctor created successfully!');
         setShowCreateDoctor(false);
-        await loadDoctors(); // Refresh doctors list
+        
+        // Immediately update the specialty count for better UX
+        const selectedSpecialtyId = parseInt(formData.specialtyId);
+        setSpecialties(prev => prev.map(specialty => 
+          specialty.id === selectedSpecialtyId 
+            ? { ...specialty, doctorCount: specialty.doctorCount + 1 }
+            : specialty
+        ));
+        
+        // Refresh doctors list - useEffect will sync the counts accurately
+        await loadDoctors();
       } else {
         // Enhanced error handling for 400 status and duplicate doctor scenarios
         const contentType = response.headers.get('content-type');
@@ -846,11 +913,27 @@ const loadSpecialties = async () => {
       });
 
       if (response.ok) {
+        // Find the doctor's specialty to update count immediately
+        const doctor = doctors.find(d => d.id === doctorId);
+        const specialtyId = doctor?.specialty.id;
+        
         // Update the local state to reflect the change immediately
         // This ensures the doctor remains in the list but with updated status
-        setDoctors(doctors.map(doctor => 
-          doctor.id === doctorId ? {...doctor, isActive: !currentStatus} : doctor
+        setDoctors(doctors.map(doc => 
+          doc.id === doctorId ? {...doc, isActive: !currentStatus} : doc
         ));
+        
+        // Immediately update specialty count for better UX
+        if (specialtyId) {
+          setSpecialties(prev => prev.map(specialty => {
+            if (specialty.id === specialtyId) {
+              const countChange = !currentStatus ? 1 : -1; // +1 if activating, -1 if deactivating
+              return { ...specialty, doctorCount: Math.max(0, specialty.doctorCount + countChange) };
+            }
+            return specialty;
+          }));
+        }
+        
         alert(`Doctor status updated to ${!currentStatus ? 'Active' : 'Inactive'} successfully!`);
       } else {
         await handleApiError(response, 'Updating doctor status');
