@@ -1,6 +1,6 @@
 import type { LoginRequest, RegisterRequest, LoginResponse, MessageResponse, User } from "@/types/auth";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8083';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082';
 
 export const API_ENDPOINTS = {
   REGISTER: `${API_BASE_URL}/api/auth/register`,
