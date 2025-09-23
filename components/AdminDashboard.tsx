@@ -4,7 +4,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, Stethoscope, Building, Plus, Edit, Trash2, Eye, EyeOff, Search } from 'lucide-react';
+import { Users, UserPlus, Stethoscope, Building, Plus, Edit, Trash2, Search } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 
 interface Doctor {
@@ -43,8 +43,11 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [showCreateDoctor, setShowCreateDoctor] = useState(false);
   const [showCreateSpecialty, setShowCreateSpecialty] = useState(false);
+  const [showEditSpecialty, setShowEditSpecialty] = useState(false);
+  const [editingSpecialty, setEditingSpecialty] = useState<Specialty | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSpecialty, setFilterSpecialty] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [error, setError] = useState<string>('');
   const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
 
@@ -379,6 +382,133 @@ const loadSpecialties = async () => {
     );
   };
 
+  const EditSpecialtyForm = () => {
+    const [formData, setFormData] = useState({
+      name: editingSpecialty?.name || '',
+      description: editingSpecialty?.description || ''
+    });
+    const [submitError, setSubmitError] = useState('');
+
+    useEffect(() => {
+      if (editingSpecialty) {
+        setFormData({
+          name: editingSpecialty.name,
+          description: editingSpecialty.description
+        });
+      }
+    }, [editingSpecialty]);
+
+    const handleSubmit = async () => {
+      if (!formData.name.trim()) {
+        alert('Please enter a specialty name');
+        return;
+      }
+
+      if (!editingSpecialty) {
+        alert('No specialty selected for editing');
+        return;
+      }
+
+      setLoading(true);
+      setSubmitError('');
+      
+      try {
+        const headers = getAuthHeaders();
+        const url = `${API_BASE_URL}/api/admin/specialties/${editingSpecialty.id}`;
+        
+        console.log('Sending update request to:', url);
+        console.log('With data:', formData);
+        console.log('With headers:', headers);
+        
+        const response = await fetch(url, {
+          method: 'PUT',
+          headers: headers,
+          body: JSON.stringify(formData)
+        });
+
+        console.log('Response status:', response.status);
+        console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('Success response:', result);
+          alert('Specialty updated successfully!');
+          setShowEditSpecialty(false);
+          setEditingSpecialty(null);
+          await loadSpecialties(); // Refresh specialties list
+        } else {
+          await handleApiError(response, 'Updating specialty');
+        }
+      } catch (error) {
+        console.error('Error updating specialty:', error);
+        const errorMessage = (error as Error).message;
+        setSubmitError(errorMessage);
+        alert('Error updating specialty: ' + errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <h3 className="text-lg font-semibold mb-4">Edit Specialty</h3>
+          
+          {submitError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-700">{submitError}</p>
+            </div>
+          )}
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Specialty Name</label>
+              <input 
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                className="w-full border rounded-lg px-3 py-2"
+                required
+                placeholder="e.g., Cardiology, Neurology"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Description</label>
+              <textarea 
+                value={formData.description}
+                onChange={(e) => setFormData({...formData, description: e.target.value})}
+                className="w-full border rounded-lg px-3 py-2 h-24"
+                placeholder="Brief description of the specialty"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <button 
+                type="button"
+                onClick={() => {
+                  setShowEditSpecialty(false);
+                  setEditingSpecialty(null);
+                }}
+                className="px-4 py-2 text-gray-600 border rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button 
+                type="button"
+                onClick={handleSubmit}
+                disabled={loading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {loading ? 'Updating...' : 'Update Specialty'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
 const CreateDoctorForm = () => {
   const [formData, setFormData] = useState({
     userId: '',
@@ -426,6 +556,19 @@ const CreateDoctorForm = () => {
     setLoading(true);
     
     try {
+      // Check if doctor already exists in the selected specialty
+      const selectedUser = users.find(user => user.id.toString() === formData.userId);
+      const existingDoctor = doctors.find(doctor => 
+        doctor.email === selectedUser?.email && 
+        doctor.specialty.id.toString() === formData.specialtyId
+      );
+
+      if (existingDoctor) {
+        setSubmitError(`Doctor ${selectedUser?.firstName} ${selectedUser?.lastName} is already assigned to this specialty.`);
+        setLoading(false);
+        return;
+      }
+
       // Ensure numeric values are properly formatted
       const payload = {
         userId: parseInt(formData.userId),
@@ -455,15 +598,20 @@ const CreateDoctorForm = () => {
         setShowCreateDoctor(false);
         await loadDoctors(); // Refresh doctors list
       } else {
-        // Enhanced error handling for 400 status
+        // Enhanced error handling for 400 status and duplicate doctor scenarios
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
           try {
             const errorData = await response.json();
             console.error('Server error details:', errorData);
             
-            // Handle validation errors from backend
-            if (errorData.message) {
+            // Check for specific error messages indicating duplicate doctor
+            if (errorData.message && 
+                (errorData.message.toLowerCase().includes('already exists') || 
+                 errorData.message.toLowerCase().includes('duplicate') ||
+                 errorData.message.toLowerCase().includes('already assigned'))) {
+              setSubmitError(`This user is already registered as a doctor in the selected specialty. Please choose a different user or specialty.`);
+            } else if (errorData.message) {
               setSubmitError(errorData.message);
             } else if (errorData.errors) {
               // Handle field-specific validation errors
@@ -481,7 +629,16 @@ const CreateDoctorForm = () => {
     } catch (error) {
       console.error('Error creating doctor:', error);
       const errorMessage = (error as Error).message;
-      setSubmitError(errorMessage);
+      
+      // Handle network errors and other exceptions
+      if (errorMessage.toLowerCase().includes('fetch')) {
+        setSubmitError('Network error: Unable to connect to server. Please check your connection and try again.');
+      } else if (errorMessage.toLowerCase().includes('duplicate') || 
+                 errorMessage.toLowerCase().includes('already exists')) {
+        setSubmitError('This doctor already exists in the system. Please check and try with different details.');
+      } else {
+        setSubmitError(`Error creating doctor: ${errorMessage}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -657,10 +814,12 @@ const CreateDoctorForm = () => {
       });
 
       if (response.ok) {
+        // Update the local state to reflect the change immediately
+        // This ensures the doctor remains in the list but with updated status
         setDoctors(doctors.map(doctor => 
           doctor.id === doctorId ? {...doctor, isActive: !currentStatus} : doctor
         ));
-        alert('Doctor status updated successfully!');
+        alert(`Doctor status updated to ${!currentStatus ? 'Active' : 'Inactive'} successfully!`);
       } else {
         await handleApiError(response, 'Updating doctor status');
       }
@@ -702,7 +861,11 @@ const CreateDoctorForm = () => {
                          doctor.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          doctor.licenseNumber.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSpecialty = !filterSpecialty || doctor.specialty.id.toString() === filterSpecialty;
-    return matchesSearch && matchesSpecialty;
+    const matchesStatus = filterStatus === 'all' || 
+                         (filterStatus === 'active' && doctor.isActive) ||
+                         (filterStatus === 'inactive' && !doctor.isActive);
+    
+    return matchesSearch && matchesSpecialty && matchesStatus;
   });
 
   const filteredSpecialties = specialties.filter(specialty =>
@@ -846,6 +1009,15 @@ const CreateDoctorForm = () => {
                     </option>
                   ))}
                 </select>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All Status</option>
+                  <option value="active">Active Only</option>
+                  <option value="inactive">Inactive Only</option>
+                </select>
                 <button
                   onClick={() => setShowCreateDoctor(true)}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
@@ -904,20 +1076,29 @@ const CreateDoctorForm = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">฿{doctor.consultationFee}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{doctor.roomNumber}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            doctor.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                          }`}>
-                            {doctor.isActive ? 'Active' : 'Inactive'}
-                          </span>
+                          <div className="flex items-center">
+                            <button
+                              onClick={() => toggleDoctorStatus(doctor.id, doctor.isActive)}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                                doctor.isActive ? 'bg-green-600' : 'bg-gray-300'
+                              }`}
+                              disabled={loading}
+                            >
+                              <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                  doctor.isActive ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                              />
+                            </button>
+                            <span className={`ml-3 text-xs font-medium ${
+                              doctor.isActive ? 'text-green-800' : 'text-red-800'
+                            }`}>
+                              {doctor.isActive ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => toggleDoctorStatus(doctor.id, doctor.isActive)}
-                            className={`mr-3 ${doctor.isActive ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'}`}
-                            title={doctor.isActive ? 'Deactivate' : 'Activate'}
-                          >
-                            {doctor.isActive ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                          </button>
+                          <span className="text-gray-400">No actions</span>
                         </td>
                       </tr>
                     ))}
@@ -959,7 +1140,14 @@ const CreateDoctorForm = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button className="text-blue-600 hover:text-blue-900 mr-3" title="Edit">
+                          <button 
+                            onClick={() => {
+                              setEditingSpecialty(specialty);
+                              setShowEditSpecialty(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-900 mr-3" 
+                            title="Edit"
+                          >
                             <Edit className="w-5 h-5" />
                           </button>
                           <button
@@ -988,6 +1176,7 @@ const CreateDoctorForm = () => {
       {/* Modals */}
       {showCreateDoctor && <CreateDoctorForm />}
       {showCreateSpecialty && <CreateSpecialtyForm />}
+      {showEditSpecialty && <EditSpecialtyForm />}
     </div>
   );
 };
