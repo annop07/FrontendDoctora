@@ -11,11 +11,19 @@ export default function LandingPage() {
   const router = useRouter();
   const [selectedOption, setSelectedOption] = useState('');
   const [isClient, setIsClient] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   // ตรวจสอบว่าเรากำลังรันใน client หรือไม่
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  // ตรวจสอบสถานะการเข้าสู่ระบบ (mock function - สามารถปรับแต่งตามระบบ authentication ที่ใช้)
+  const isLoggedIn = () => {
+    // สำหรับ demo ให้ return false เสมอ เพื่อให้แสดง modal
+    // ในการใช้งานจริงอาจเช็คจาก localStorage, sessionStorage, หรือ context
+    return false;
+  };
 
   // เมื่อผู้ใช้เลือก option ให้เก็บลง sessionStorage.bookingDraft.illness
   useEffect(() => {
@@ -41,6 +49,12 @@ export default function LandingPage() {
   const handleNext = () => {
     if (!selectedOption) {
       alert('กรุณาเลือกตัวเลือกก่อนดำเนินการต่อ');
+      return;
+    }
+
+    // เช็คสถานะการเข้าสู่ระบบ
+    if (!isLoggedIn()) {
+      setShowLoginModal(true);
       return;
     }
     
@@ -243,7 +257,10 @@ export default function LandingPage() {
             </div>
 
             <div className="text-center mb-6">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+              <div 
+                onClick={() => router.push('/login')}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm cursor-pointer hover:bg-amber-100 transition-colors"
+              >
                 <User className="w-4 h-4" />
                 <span>จำเป็นต้องเข้าสู่ระบบเพื่อทำการนัดหมาย</span>
               </div>
