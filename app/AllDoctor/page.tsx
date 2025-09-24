@@ -568,11 +568,11 @@ const goDoc = (d: Doctor, mode: "detail" | "booking") => {
               {currentDoctors.map((doctor) => (
                 <div 
                   key={doctor.id} 
-                  className="group bg-white hover:bg-gradient-to-br hover:from-emerald-50 hover:to-teal-50 border border-emerald-200 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 p-6 hover:scale-105"
+                  className="group bg-white border border-emerald-200 rounded-2xl shadow-sm p-6"
                 >
                   <div className="flex justify-center mb-6">
                     <div className="relative">
-                      <div className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center shadow-lg group-hover:shadow-emerald-200">
+                      <div className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center shadow-lg">
                         <User className="w-10 h-10 text-white" />
                       </div>
                       <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white flex items-center justify-center">

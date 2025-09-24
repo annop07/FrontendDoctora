@@ -2,13 +2,16 @@
 import { redirect } from "next/navigation"
 
 export async function registerAction(formData : FormData){
+    const email = formData.get("email") as string;
     const pass = formData.get("password") as string;
-    const confirm = formData.get("confirm") as string;
 
     const rawData = Object.fromEntries(formData);
     console.log(rawData); 
     
     await new Promise (r => setTimeout(r,2000));
+    
+    // ไม่บันทึกข้อมูลผู้ใช้ลง localStorage ให้ผู้ใช้ล็อกอินเอง
+    
     redirect('/login');
 }
 

@@ -18,10 +18,13 @@ export default function LandingPage() {
     setIsClient(true);
   }, []);
 
-  // ตรวจสอบสถานะการเข้าสู่ระบบ (mock function - สามารถปรับแต่งตามระบบ authentication ที่ใช้)
+  // ตรวจสอบสถานะการเข้าสู่ระบบ
   const isLoggedIn = () => {
-    // สำหรับ demo ให้ return false เสมอ เพื่อให้แสดง modal
-    // ในการใช้งานจริงอาจเช็คจาก localStorage, sessionStorage, หรือ context
+    // ตรวจสอบจาก localStorage
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('user');
+      return !!savedUser;
+    }
     return false;
   };
 
@@ -91,24 +94,7 @@ export default function LandingPage() {
   if (!isClient) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
-        {/* Header + Log in/Register */}
-        <div className="relative">
-          <Navbar />
-          <div className="absolute right-6 top-3 flex gap-3">
-            <a
-              href="/login"
-              className="px-4 py-2 text-emerald-700 hover:text-emerald-900 transition-colors font-medium"
-            >
-              Log in
-            </a>
-            <a
-              href="/register"
-              className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all duration-200 shadow-md font-medium"
-            >
-              Register
-            </a>
-          </div>
-        </div>
+        <Navbar />
 
         {/* Loading placeholder */}
         <main className="max-w-6xl mx-auto px-6 py-6">
@@ -127,24 +113,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
-      {/* Header + Log in/Register */}
-      <div className="relative">
-        <Navbar />
-        <div className="absolute right-6 top-3 flex gap-3 z-20">
-          <a
-            href="/login"
-            className="px-4 py-2 text-emerald-700 hover:text-emerald-900 transition-colors font-medium"
-          >
-            Log in
-          </a>
-          <a
-            href="/register"
-            className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all duration-200 shadow-md font-medium"
-          >
-            Register
-          </a>
-        </div>
-      </div>
+      <Navbar />
 
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-6 py-6">
@@ -171,7 +140,7 @@ export default function LandingPage() {
             return (
               <div
                 key={index}
-                className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 border border-emerald-100 hover:-translate-y-1"
+                className="bg-white rounded-2xl p-6 shadow-lg border border-emerald-100"
               >
                 <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-r ${feature.color} mb-4`}>
                   <IconComponent className="w-6 h-6 text-white" />

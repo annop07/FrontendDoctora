@@ -296,6 +296,32 @@ export default function ConfirmPage() {
 
   const handleConfirm = async () => {
     setIsLoading(true);
+    
+    // บันทึกประวัติการจองลง localStorage
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (user.email) {
+      const bookingRecord = {
+        id: Date.now(),
+        queueNumber: queue,
+        patientName: `${patient.prefix} ${patient.firstName} ${patient.lastName}`,
+        doctorName: doctor || "-",
+        department: depart || "-",
+        appointmentType: mapIllnessLabel(illness),
+        date: selectedDate,
+        time: selectedTime,
+        status: "กำลังรอ", // เริ่มต้นด้วยสถานะกำลังรอ
+        statusColor: "text-amber-600 bg-amber-50",
+        createdAt: new Date().toISOString(),
+        userEmail: user.email
+      };
+      
+      // เก็บประวัติแยกตาม email ของผู้ใช้
+      const historyKey = `bookingHistory_${user.email}`;
+      const existingHistory = JSON.parse(localStorage.getItem(historyKey) || '[]');
+      existingHistory.push(bookingRecord);
+      localStorage.setItem(historyKey, JSON.stringify(existingHistory));
+    }
+    
     await new Promise(resolve => setTimeout(resolve, 100));
     const success = await exportPDF(queue);
     if (success) {
