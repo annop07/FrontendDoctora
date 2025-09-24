@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { User } from 'lucide-react';
+import { Heart, Clock, Users, Stethoscope, Calendar, ArrowRight, User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Navbar from "@/components/Navbar";
 import Banner from "@/components/Banner";
@@ -10,48 +10,122 @@ import Footer from "@/components/Footer";
 export default function LandingPage() {
   const router = useRouter();
   const [selectedOption, setSelectedOption] = useState('');
+  const [isClient, setIsClient] = useState(false);
+
+  // ตรวจสอบว่าเรากำลังรันใน client หรือไม่
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // เมื่อผู้ใช้เลือก option ให้เก็บลง sessionStorage.bookingDraft.illness
   useEffect(() => {
-    if (!selectedOption) return;
-    // อ่าน draft เดิม (ถ้ามี)
-    const draft = JSON.parse(sessionStorage.getItem('bookingDraft') || '{}');
+    if (!selectedOption || !isClient) return;
+    
+    // ตรวจสอบว่า sessionStorage พร้อมใช้งานหรือไม่
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      // อ่าน draft เดิม (ถ้ามี)
+      const draft = JSON.parse(sessionStorage.getItem('bookingDraft') || '{}');
 
-    // เก็บประเภทเป็นค่า auto/manual
-    draft.illness = selectedOption;
+      // เก็บประเภทเป็นค่า auto/manual
+      draft.illness = selectedOption;
 
-    // เคลียร์ค่าที่อาจค้างจากการจองครั้งก่อน (กันแสดงข้อมูลเก่า)
-    draft.selectedDoctor = '';
-    draft.selectedDate   = '';
-    draft.selectedTime   = '';
+      // เคลียร์ค่าที่อาจค้างจากการจองครั้งก่อน (กันแสดงข้อมูลเก่า)
+      draft.selectedDoctor = '';
+      draft.selectedDate   = '';
+      draft.selectedTime   = '';
 
-    sessionStorage.setItem('bookingDraft', JSON.stringify(draft));
-  }, [selectedOption]);
+      sessionStorage.setItem('bookingDraft', JSON.stringify(draft));
+    }
+  }, [selectedOption, isClient]);
 
   const handleNext = () => {
     if (!selectedOption) {
       alert('กรุณาเลือกตัวเลือกก่อนดำเนินการต่อ');
       return;
     }
-    // ส่งค่า selection ไปให้หน้า /depart ด้วย (เพื่อแสดงยืนยันบนหน้านั้น)
-    router.push(`/depart?selection=${selectedOption}`);
+    
+    // ตรวจสอบว่าเรากำลังรันใน client
+    if (typeof window !== 'undefined') {
+      // ทุกตัวเลือกต้องไปหน้า depart ก่อนเพื่อเลือกแผนก
+      router.push(`/depart?selection=${selectedOption}`);
+    }
   };
 
+  // Features data
+  const features = [
+    {
+      icon: Heart,
+      title: "แพทย์เชี่ยวชาญ",
+      description: "ทีมแพทย์ที่มีคุณภาพและประสบการณ์สูง",
+      color: "from-emerald-500 to-teal-600"
+    },
+    {
+      icon: Clock,
+      title: "รวดเร็วทันใจ",
+      description: "จองนัดหมายได้ง่ายๆ ภายในไม่กี่คลิก",
+      color: "from-teal-500 to-cyan-600"
+    },
+    {
+      icon: Users,
+      title: "บริการ 24/7",
+      description: "พร้อมให้บริการคุณตลอด 24 ชั่วโมง",
+      color: "from-cyan-500 to-blue-600"
+    }
+  ];
+
+  // แสดง loading หรือ placeholder ในขณะที่รอ client hydrate
+  if (!isClient) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
+        {/* Header + Log in/Register */}
+        <div className="relative">
+          <Navbar />
+          <div className="absolute right-6 top-3 flex gap-3">
+            <a
+              href="/login"
+              className="px-4 py-2 text-emerald-700 hover:text-emerald-900 transition-colors font-medium"
+            >
+              Log in
+            </a>
+            <a
+              href="/register"
+              className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all duration-200 shadow-md font-medium"
+            >
+              Register
+            </a>
+          </div>
+        </div>
+
+        {/* Loading placeholder */}
+        <main className="max-w-6xl mx-auto px-6 py-6">
+          <div className="flex justify-center items-center min-h-96">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
+              <p className="text-emerald-700 font-medium">กำลังโหลด...</p>
+            </div>
+          </div>
+        </main>
+
+        <Footer />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
       {/* Header + Log in/Register */}
       <div className="relative">
         <Navbar />
-        <div className="absolute right-6 top-3 flex gap-3">
+        <div className="absolute right-6 top-3 flex gap-3 z-20">
           <a
             href="/login"
-            className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+            className="px-4 py-2 text-emerald-700 hover:text-emerald-900 transition-colors font-medium"
           >
             Log in
           </a>
           <a
             href="/register"
-            className="px-6 py-2 bg-[#286B81] text-white rounded-lg hover:bg-[#1e5468] transition-colors"
+            className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all duration-200 shadow-md font-medium"
           >
             Register
           </a>
@@ -59,46 +133,135 @@ export default function LandingPage() {
       </div>
 
       {/* Main Content */}
-      <main className="max-w-5xl mx-auto px-6 py-6">
+      <main className="max-w-6xl mx-auto px-6 py-6">
         {/* Banner Component */}
         <Banner />
 
-        {/* Appointment Section */}
-        <div className="max-w-2xl mx-auto text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-6">
-            เริ่มทำการนัดหมายแพทย์
+        {/* Welcome Section */}
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 rounded-full mb-6">
+            <Stethoscope className="w-8 h-8 text-emerald-600" />
+          </div>
+          <h1 className="text-4xl font-bold text-emerald-900 mb-4">
+            ยินดีต้อนรับสู่ <span className="text-emerald-600">Doctora</span>
           </h1>
+          <p className="text-xl text-emerald-700 mb-8 max-w-2xl mx-auto leading-relaxed">
+            ระบบจองนัดหมายแพทย์ออนไลน์ที่ทันสมัย ปลอดภัย และใช้งานง่าย
+          </p>
+        </div>
 
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-sky-100 rounded-full flex items-center justify-center">
-              <User className="w-5 h-5 text-[#286B81]" />
+        {/* Features Grid */}
+        <div className="grid md:grid-cols-3 gap-8 mb-16 max-w-4xl mx-auto">
+          {features.map((feature, index) => {
+            const IconComponent = feature.icon;
+            return (
+              <div
+                key={index}
+                className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 border border-emerald-100 hover:-translate-y-1"
+              >
+                <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-r ${feature.color} mb-4`}>
+                  <IconComponent className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-emerald-900 mb-2">
+                  {feature.title}
+                </h3>
+                <p className="text-emerald-700 text-sm leading-relaxed">
+                  {feature.description}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Appointment Section */}
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-3xl shadow-2xl p-8 border border-emerald-100">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 rounded-full mb-4">
+                <Calendar className="w-8 h-8 text-emerald-600" />
+              </div>
+              <h2 className="text-3xl font-bold text-emerald-900 mb-3">
+                เริ่มจองนัดหมายแพทย์
+              </h2>
+              <p className="text-emerald-700">
+                เลือกวิธีการจองที่เหมาะสมกับคุณ
+              </p>
             </div>
 
-            <select
-              value={selectedOption}
-              onChange={(e) => setSelectedOption(e.target.value)}
-              className="px-3 py-3 border border-gray-300 rounded-lg text-gray-700 bg-white w-95 text-lg focus:outline-none focus:ring-2 focus:ring-[#286B81] focus:border-[#286B81]"
+            <div className="space-y-4 mb-8">
+              <div 
+                className={`relative p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 ${
+                  selectedOption === 'auto' 
+                    ? 'border-emerald-500 bg-emerald-50 shadow-md' 
+                    : 'border-emerald-200 bg-white hover:border-emerald-300 hover:bg-emerald-25'
+                }`}
+                onClick={() => setSelectedOption('auto')}
+              >
+                <div className="flex items-center">
+                  <div className={`w-5 h-5 rounded-full border-2 mr-4 flex items-center justify-center ${
+                    selectedOption === 'auto' ? 'border-emerald-500' : 'border-emerald-300'
+                  }`}>
+                    {selectedOption === 'auto' && (
+                      <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
+                    )}
+                  </div>
+                  <div className="flex items-center">
+                    <Stethoscope className="w-5 h-5 text-emerald-600 mr-3" />
+                    <div>
+                      <h3 className="font-semibold text-emerald-900">เลือกแพทย์ให้ฉัน</h3>
+                      <p className="text-sm text-emerald-600">ระบบจะแนะนำแพทย์ที่เหมาะสมตามอาการ</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div 
+                className={`relative p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 ${
+                  selectedOption === 'manual' 
+                    ? 'border-emerald-500 bg-emerald-50 shadow-md' 
+                    : 'border-emerald-200 bg-white hover:border-emerald-300 hover:bg-emerald-25'
+                }`}
+                onClick={() => setSelectedOption('manual')}
+              >
+                <div className="flex items-center">
+                  <div className={`w-5 h-5 rounded-full border-2 mr-4 flex items-center justify-center ${
+                    selectedOption === 'manual' ? 'border-emerald-500' : 'border-emerald-300'
+                  }`}>
+                    {selectedOption === 'manual' && (
+                      <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
+                    )}
+                  </div>
+                  <div className="flex items-center">
+                    <User className="w-5 h-5 text-emerald-600 mr-3" />
+                    <div>
+                      <h3 className="font-semibold text-emerald-900">ฉันต้องการเลือกแพทย์เอง</h3>
+                      <p className="text-sm text-emerald-600">เลือกแพทย์และเวลาที่ต้องการเองทั้งหมด</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+                <User className="w-4 h-4" />
+                <span>จำเป็นต้องเข้าสู่ระบบเพื่อทำการนัดหมาย</span>
+              </div>
+            </div>
+
+            <button
+              onClick={handleNext}
+              disabled={!selectedOption}
+              className={`w-full py-4 px-6 rounded-2xl font-semibold text-lg transition-all duration-200 flex items-center justify-center gap-2 ${
+                selectedOption
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5'
+                  : 'bg-emerald-200 text-emerald-400 cursor-not-allowed'
+              }`}
             >
-              <option value="" disabled>
-                กรุณาเลือกตัวเลือก
-              </option>
-              <option value="auto">เลือกแพทย์ให้ฉัน</option>
-              <option value="manual">ฉันต้องการเลือกแพทย์เอง</option>
-            </select>
+              เริ่มจองนัดหมาย
+              <ArrowRight className="w-5 h-5" />
+            </button>
           </div>
-
-          <div className="text-red-500 text-sm mb-4">
-            <a href="/login" className="hover:text-red-700 transition-colors">
-              จำเป็นต้องมีการลงทะเบียนเพื่อทำการนัดหมาย คลิกที่นี่เพื่อเข้าสู่ระบบ
-            </a>
-          </div>
-
-          <button
-            onClick={handleNext}
-            className="w-full max-w-sm bg-[#286B81] hover:bg-[#1e5468] text-white text-lg font-bold py-3 px-6 rounded-lg transition-colors"
-          >
-            ต่อไป &gt;
-          </button>
         </div>
       </main>
 

@@ -1,113 +1,32 @@
 // components/Footer.tsx
-import Link from 'next/link';
+import { Phone, AlertTriangle } from 'lucide-react'
 
 export default function Footer() {
-  const footerSections = [
-    {
-      title: "Company",
-      links: [
-        { name: "About Us", href: "/about" },
-        { name: "Contact Us", href: "/contact" },
-        { name: "Careers", href: "/careers" },
-        { name: "Blog", href: "/blog" }
-      ]
-    },
-    {
-      title: "Support",
-      links: [
-        { name: "Help Center", href: "/help" },
-        { name: "FAQs", href: "/faqs" },
-        { name: "Terms of Service", href: "/terms" },
-        { name: "Privacy Policy", href: "/privacy" }
-      ]
-    },
-    {
-      title: "Services",
-      links: [
-        { name: "Online Consultation", href: "/consultation" },
-        { name: "Health Records", href: "/records" },
-        { name: "Prescription", href: "/prescription" },
-        { name: "Wellness Programs", href: "/wellness" }
-      ]
-    }
-  ];
-
   return (
-    <footer className="border-t border-slate-200 bg-slate-50/50 backdrop-blur-sm">
-      <div className="mx-auto max-w-7xl px-6 py-12">
-        {/* Main Footer Content */}
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
-          {/* Brand Section */}
-          <div className="lg:col-span-1">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 rounded-xl bg-teal-500 flex items-center justify-center">
-                <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
-              </div>
-              <div className="font-bold text-xl text-slate-800">Doctora</div>
-            </div>
-            <p className="text-slate-600 text-sm leading-relaxed mb-6">
-              Your trusted healthcare partner providing quality medical services 
-              with convenience and care.
-            </p>
-            
-            {/* Social Links */}
-            <div className="flex gap-3">
-              <a href="#" className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-teal-100 hover:text-teal-600 transition-colors">
-                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/>
-                </svg>
-              </a>
-              <a href="#" className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-teal-100 hover:text-teal-600 transition-colors">
-                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M22.46 6c-.77.35-1.6.58-2.46.69.88-.53 1.56-1.37 1.88-2.38-.83.5-1.75.85-2.72 1.05C18.37 4.5 17.26 4 16 4c-2.35 0-4.27 1.92-4.27 4.29 0 .34.04.67.11.98C8.28 9.09 5.11 7.38 3 4.79c-.37.63-.58 1.37-.58 2.15 0 1.49.75 2.81 1.91 3.56-.71 0-1.37-.2-1.95-.5v.03c0 2.08 1.48 3.82 3.44 4.21a4.22 4.22 0 0 1-1.93.07 4.28 4.28 0 0 0 4 2.98 8.521 8.521 0 0 1-5.33 1.84c-.34 0-.68-.02-1.02-.06C3.44 20.29 5.7 21 8.12 21 16 21 20.33 14.46 20.33 8.79c0-.19 0-.37-.01-.56.84-.6 1.56-1.36 2.14-2.23z"/>
-                </svg>
-              </a>
-              <a href="#" className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-teal-100 hover:text-teal-600 transition-colors">
-                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                </svg>
-              </a>
+    <footer className="bg-gradient-to-r from-red-600 to-red-700 border-t border-red-500">
+      <div className="container mx-auto px-6 py-6">
+        <div className="flex items-center justify-center gap-4 flex-wrap mb-4">
+          <AlertTriangle className="w-6 h-6 text-red-100 animate-pulse" />
+          <p className="text-red-50 text-lg font-medium text-center leading-relaxed">
+            การนัดหมายนี้ไม่สามารถใช้ในผู้ป่วยฉุกเฉิน หรือนัดหมายแพทย์ในวันเดียวกัน
+          </p>
+          <AlertTriangle className="w-6 h-6 text-red-100 animate-pulse" />
+        </div>
+        
+        <div className="flex items-center justify-center gap-8 flex-wrap">
+          <div className="flex items-center gap-3 bg-red-500/20 backdrop-blur-sm rounded-lg px-4 py-2 border border-red-400/30">
+            <Phone className="w-5 h-5 text-red-100" />
+            <div>
+              <div className="text-red-100 text-xs opacity-90">ฉุกเฉิน</div>
+              <div className="font-bold text-red-50 text-lg">1724</div>
             </div>
           </div>
-
-          {/* Links Sections */}
-          {footerSections.map((section, index) => (
-            <div key={index}>
-              <h3 className="mb-4 font-semibold text-slate-800">{section.title}</h3>
-              <ul className="space-y-2">
-                {section.links.map((link, linkIndex) => (
-                  <li key={linkIndex}>
-                    <Link 
-                      href={link.href}
-                      className="text-sm text-slate-600 hover:text-teal-600 transition-colors"
-                    >
-                      {link.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-
-        {/* Bottom Section */}
-        <div className="mt-12 border-t border-slate-200 pt-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
-            <p className="text-sm text-slate-500">
-              © 2025 Doctora. All rights reserved.
-            </p>
-            <div className="flex gap-6 text-sm">
-              <Link href="/terms" className="text-slate-500 hover:text-teal-600 transition-colors">
-                Terms
-              </Link>
-              <Link href="/privacy" className="text-slate-500 hover:text-teal-600 transition-colors">
-                Privacy
-              </Link>
-              <Link href="/cookies" className="text-slate-500 hover:text-teal-600 transition-colors">
-                Cookies
-              </Link>
+          
+          <div className="flex items-center gap-3 bg-red-500/20 backdrop-blur-sm rounded-lg px-4 py-2 border border-red-400/30">
+            <Phone className="w-5 h-5 text-red-100" />
+            <div>
+              <div className="text-red-100 text-xs opacity-90">โทรศัพท์</div>
+              <div className="font-bold text-red-50 text-lg">+66 2310 3000</div>
             </div>
           </div>
         </div>

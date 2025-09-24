@@ -1,40 +1,128 @@
-// components/Banner.tsx
-export default function Banner() {
-    return (
-      <div className="relative overflow-hidden bg-gradient-to-br from-teal-500 via-teal-600 to-emerald-700 rounded-2xl shadow-xl">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute -top-4 -right-4 h-24 w-24 rounded-full bg-white/20"></div>
-          <div className="absolute top-8 right-12 h-16 w-16 rounded-full bg-white/10"></div>
-          <div className="absolute bottom-6 left-8 h-20 w-20 rounded-full bg-white/15"></div>
-          <div className="absolute bottom-12 right-6 h-12 w-12 rounded-full bg-white/20"></div>
-        </div>
-        
-        {/* Content */}
-        <div className="relative px-8 py-12 text-center text-white">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
-            <svg className="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-            </svg>
-          </div>
-          
-          <h2 className="mb-3 text-2xl font-bold">Welcome to Doctora</h2>
-          <p className="mx-auto max-w-md text-teal-100 leading-relaxed">
-            Join thousands of patients who trust us for faster, better healthcare. 
-            Get personalized care from certified professionals.
-          </p>
-          
-          <div className="mt-6 flex items-center justify-center gap-4 text-sm text-teal-100">
-            <div className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-emerald-300"></span>
-              <span>24/7 Support</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-emerald-300"></span>
-              <span>Secure & Private</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+
+// Banner slides data - simplified to only images
+const bannerSlides = [
+  {
+    id: 1,
+    bgImage: "/images/banners/banner1.png",
+    backgroundPosition: "center"
+  },
+  {
+    id: 2,
+    bgImage: "/images/banners/banner2.png",
+    backgroundPosition: "center"
+  },
+  {
+    id: 3,
+    bgImage: "/images/banners/banner3.png",
+    backgroundPosition: "center"
+  },
+  {
+    id: 4,
+    bgImage: "/images/banners/banner4.png",
+    backgroundPosition: "center"
+  },
+  {
+    id: 5,
+    bgImage: "/images/banners/banner5.png",
+    backgroundPosition: "center top"
   }
+];
+
+export default function Banner() {
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+
+  // Auto-slide every 3 seconds
+  useEffect(() => {
+    if (isPaused) return;
+    
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % bannerSlides.length);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [isPaused]);
+
+  const nextSlide = () => {
+    setCurrentSlide((prev) => (prev + 1) % bannerSlides.length);
+  };
+
+  const prevSlide = () => {
+    setCurrentSlide((prev) => (prev - 1 + bannerSlides.length) % bannerSlides.length);
+  };
+
+  const goToSlide = (index: number) => {
+    setCurrentSlide(index);
+  };
+
+  return (
+    <div 
+      className="relative overflow-hidden rounded-2xl shadow-xl h-96 mb-8"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+    >
+      {/* Slides Container - using transform for smooth sliding */}
+      <div 
+        className="flex transition-transform duration-500 ease-in-out h-full"
+        style={{
+          transform: `translateX(-${currentSlide * 100}%)`
+        }}
+      >
+        {bannerSlides.map((slide) => (
+          <div
+            key={slide.id}
+            className="min-w-full h-full relative"
+            style={{
+              backgroundImage: `url("${slide.bgImage}")`,
+              backgroundSize: 'cover',
+              backgroundPosition: slide.backgroundPosition || 'center',
+              backgroundRepeat: 'no-repeat'
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Navigation Arrows */}
+      <button
+        onClick={prevSlide}
+        className="absolute left-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-all z-10"
+        aria-label="Previous slide"
+      >
+        <ChevronLeft className="h-5 w-5 text-white" />
+      </button>
+
+      <button
+        onClick={nextSlide}
+        className="absolute right-4 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/50 transition-all z-10"
+        aria-label="Next slide"
+      >
+        <ChevronRight className="h-5 w-5 text-white" />
+      </button>
+
+      {/* Dot Indicators */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+        {bannerSlides.map((_, index) => (
+          <button
+            key={index}
+            onClick={() => goToSlide(index)}
+            className={`h-3 w-3 rounded-full transition-all ${
+              index === currentSlide 
+                ? 'bg-white w-8' 
+                : 'bg-white/60 hover:bg-white/80'
+            }`}
+            aria-label={`Go to slide ${index + 1}`}
+          />
+        ))}
+      </div>
+
+      {/* Slide Counter */}
+      <div className="absolute top-4 right-4 px-3 py-1 bg-black/30 backdrop-blur-sm rounded-lg text-white text-sm z-10">
+        {currentSlide + 1} / {bannerSlides.length}
+      </div>
+    </div>
+  );
+}

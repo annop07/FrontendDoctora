@@ -22,7 +22,7 @@ const Schedule = ({ onChange }: { onChange?: (d: Date | undefined) => void }) =>
       onSelect={handleSelect}
       // ✅ disable วันก่อนหน้าและวันนี้
       disabled={{ before: tomorrow }}
-      className="rounded-lg border"
+      className="rounded-lg border w-full [--cell-size:3rem] text-base"
     />
   )
 }

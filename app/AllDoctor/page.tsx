@@ -1,8 +1,10 @@
 "use client";
 
 import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Search, Filter, Calendar as CalendarIcon, Clock, User, Stethoscope, Building, CheckCircle, Sun, Settings, RotateCcw, ArrowLeft, ArrowRight, Sunset } from "lucide-react";
 
 /** ==================== Calendar (client-only, no SSR time drift) ==================== */
 function Calendar({ onChange }: { onChange?: (d: Date | undefined) => void }) {
@@ -253,11 +255,19 @@ export default function DoctorSearchPage() {
   );
 
   /** -------- UI helpers -------- */
-  const base = "w-full h-12 rounded-md shadow p-2 text-left transition-colors duration-150 cursor-pointer";
-  const active = "bg-sky-100 border border-sky-400 ring-1 ring-sky-400";
-  const normal = "hover:bg-sky-200";
   const handleTimeSelect = (time: string) => setSelectedTime(time === selectedTime ? "" : time);
-  const handleSearch = () => setCurrentPage(1);
+  
+  const handleSearch = () => {
+    // เมื่อกดค้นหา ให้ใช้ตัวกรองที่มีอยู่ทันทีและรีเซ็ตไปหน้าแรก
+    setAppliedFilters({
+      gender: selectedGender,
+      time: selectedTime,
+      date: selectedDate ? selectedDate.toISOString().split("T")[0] : "",
+      department: selectedDepartment,
+      available: doctorAvailable
+    });
+    setCurrentPage(1);
+  };
 
   const applyFilters = () => {
     setAppliedFilters({
@@ -268,6 +278,7 @@ export default function DoctorSearchPage() {
       available: doctorAvailable
     });
     setCurrentPage(1);
+    setShowFilters(false); // ปิดช่องตัวกรองอัตโนมัติ
   };
 
   const resetFilters = () => {
@@ -306,86 +317,144 @@ const goDoc = (d: Doctor, mode: "detail" | "booking") => {
 
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
       <Navbar />
 
-      <div className="container mx-auto px-6 py-6">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header Section */}
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center mb-4">
+            <div className="p-3 bg-emerald-100 rounded-full">
+              <Stethoscope className="h-8 w-8 text-emerald-600" />
+            </div>
+          </div>
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+            เลือกแพทย์ผู้เชี่ยวชาญ
+          </h1>
+          <p className="text-gray-600 max-w-2xl mx-auto">
+            ค้นหาและเลือกแพทย์ที่เหมาะสมกับความต้องการของคุณ พร้อมระบบจองนัดหมายที่สะดวกรวดเร็ว
+          </p>
+        </div>
+
         {/* Search Section */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-emerald-100 p-6 mb-8">
           <div className="flex flex-col lg:flex-row gap-4 items-end">
-            <div className="flex-1">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
               <input
                 type="text"
-                placeholder="ค้นหาแพทย์ ชื่อ, ความชำนาญ, ..."
+                placeholder="ค้นหาแพทย์ ชื่อ, ความชำนาญ, แผนก..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-3 border border-emerald-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 bg-white/80"
               />
             </div>
 
             <button
               onClick={handleSearch}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-md flex items-center gap-2 transition-colors"
+              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-8 py-3 rounded-xl flex items-center gap-2 transition-all duration-200 shadow-lg hover:shadow-emerald-200"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              ค้นหา
+              <Search className="w-5 h-5" />
+              <span className="hidden sm:inline">ค้นหา</span>
             </button>
 
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="bg-blue-400 hover:bg-blue-500 text-white px-4 py-3 rounded-md transition-colors"
+              className={`${
+                showFilters 
+                  ? 'bg-emerald-500 text-white' 
+                  : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+              } px-6 py-3 rounded-xl transition-all duration-200 flex items-center gap-2 shadow-md`}
             >
-              ตัวกรอง
+              <Filter className="w-5 h-5" />
+              <span className="hidden sm:inline">ตัวกรอง</span>
             </button>
           </div>
 
           {showFilters && (
-            <div className="mt-6 pt-6 border-t border-gray-200 space-y-6">
-              {/* Gender */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">เพศ</label>
-                <select
-                  value={selectedGender}
-                  onChange={(e) => setSelectedGender(e.target.value as "ชาย" | "หญิง" | "")}
-                  className="w-full md:w-48 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">ทั้งหมด</option>
-                  <option value="ชาย">ชาย</option>
-                  <option value="หญิง">หญิง</option>
-                </select>
+            <div className="mt-8 pt-6 border-t border-emerald-200 space-y-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Settings className="h-5 w-5 text-emerald-600" />
+                <h3 className="text-lg font-semibold text-gray-900">ตัวกรองการค้นหา</h3>
+              </div>
+              
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Gender */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                    <User className="h-4 w-4 text-emerald-600" />
+                    เพศ
+                  </label>
+                  <select
+                    value={selectedGender}
+                    onChange={(e) => setSelectedGender(e.target.value as "ชาย" | "หญิง" | "")}
+                    className="w-full rounded-xl border-2 border-emerald-200 px-4 py-3 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200 bg-white/80"
+                  >
+                    <option value="">เลือกเพศทั้งหมด</option>
+                    <option value="ชาย">ชาย</option>
+                    <option value="หญิง">หญิง</option>
+                  </select>
+                </div>
+
+                {/* Department */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                    <Building className="h-4 w-4 text-emerald-600" />
+                    ความชำนาญ
+                  </label>
+                  <select
+                    value={selectedDepartment}
+                    onChange={(e) => setSelectedDepartment(e.target.value)}
+                    className="w-full rounded-xl border-2 border-emerald-200 px-4 py-3 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200 bg-white/80"
+                  >
+                    <option value="">เลือกแผนกทั้งหมด</option>
+                    {departments.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Available Status */}
+                <div className="space-y-2">
+                  <label className="flex items-center space-x-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={doctorAvailable}
+                      onChange={(e) => setDoctorAvailable(e.target.checked)}
+                      className="w-5 h-5 text-emerald-600 border-emerald-300 rounded focus:ring-emerald-500 focus:ring-2"
+                    />
+                    <div className="flex items-center gap-2">   
+                      <span className="text-sm font-medium text-gray-700">แพทย์พร้อมนัด</span>
+ <CheckCircle className="h-4 w-4 text-emerald-600" />
+                    </div>
+                  </label>
+                </div>
               </div>
 
-              {/* Department */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">แผนก</label>
-                <select
-                  value={selectedDepartment}
-                  onChange={(e) => setSelectedDepartment(e.target.value)}
-                  className="w-full md:w-48 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">ทั้งหมด</option>
-                  {departments.map((dept) => (
-                    <option key={dept} value={dept}>
-                      {dept}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Time */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">เวลา</label>
+              {/* Time Selection */}
+              <div className="space-y-4">
+                <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-emerald-600" />
+                  เวลา
+                </label>
                 <div className="space-y-4">
                   <div>
-                    <h4 className="text-sm font-medium text-gray-600 mb-2">ช่วงเช้า</h4>
-                    <div className="grid grid-cols-3 gap-2">
+                    <h4 className="text-sm font-medium text-emerald-700 mb-3 flex items-center gap-1">
+                      <Sun className="h-4 w-4" />
+                      ช่วงเช้า
+                    </h4>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
                       {timeSlots.morning.map((time) => (
                         <button
                           key={time}
                           onClick={() => handleTimeSelect(time)}
-                          className={`${base} ${selectedTime === time ? active : normal}`}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                            selectedTime === time
+                              ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200'
+                              : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                          }`}
                         >
                           {time}
                         </button>
@@ -393,13 +462,20 @@ const goDoc = (d: Doctor, mode: "detail" | "booking") => {
                     </div>
                   </div>
                   <div>
-                    <h4 className="text-sm font-medium text-gray-600 mb-2">ช่วงบ่าย</h4>
-                    <div className="grid grid-cols-3 gap-2">
+                    <h4 className="text-sm font-medium text-emerald-700 mb-3 flex items-center gap-1">
+                      <Sunset className="h-4 w-4" />
+                      ช่วงบ่าย
+                    </h4>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
                       {timeSlots.afternoon.map((time) => (
                         <button
                           key={time}
                           onClick={() => handleTimeSelect(time)}
-                          className={`${base} ${selectedTime === time ? active : normal}`}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                            selectedTime === time
+                              ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200'
+                              : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                          }`}
                         >
                           {time}
                         </button>
@@ -410,36 +486,30 @@ const goDoc = (d: Doctor, mode: "detail" | "booking") => {
               </div>
 
               {/* Date */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">วันที่</label>
-                <Calendar onChange={setSelectedDate} />
-              </div>
-
-              {/* Available */}
-              <div>
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={doctorAvailable}
-                    onChange={(e) => setDoctorAvailable(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700">แพทย์พร้อมนัด</span>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4 text-emerald-600" />
+                  วันที่
                 </label>
+                <div className="bg-white/50 p-4 rounded-lg border border-emerald-200">
+                  <Calendar onChange={setSelectedDate} />
+                </div>
               </div>
 
-              {/* Actions */}
-              <div className="flex gap-4 pt-4 border-t border-gray-200">
+              {/* Filter Actions */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-emerald-200">
                 <button
                   onClick={applyFilters}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-md transition-colors font-medium"
+                  className="flex-1 sm:flex-none bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-8 py-3 rounded-xl transition-all duration-200 font-medium shadow-lg hover:shadow-emerald-200 flex items-center justify-center gap-2"
                 >
+                  <CheckCircle className="w-5 h-5" />
                   ใช้ตัวกรอง
                 </button>
                 <button
                   onClick={resetFilters}
-                  className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-6 py-2 rounded-md transition-colors font-medium"
+                  className="flex-1 sm:flex-none bg-gray-100 hover:bg-gray-200 text-gray-700 px-8 py-3 rounded-xl transition-all duration-200 font-medium flex items-center justify-center gap-2"
                 >
+                  <RotateCcw className="w-5 h-5" />
                   รีเซ็ต
                 </button>
               </div>
@@ -448,119 +518,176 @@ const goDoc = (d: Doctor, mode: "detail" | "booking") => {
         </div>
 
         {/* Department badge */}
-        <div className="mb-6">
-          <button className="bg-blue-400 text-white px-4 py-2 rounded-md text-sm transition-colors">
-            {appliedFilters.department ? appliedFilters.department : "ทั้งหมด"}
-          </button>
+        <div className="mb-8">
+          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-5 py-2.5 rounded-full text-sm font-semibold shadow-md">
+            <span>•</span>
+            <span>{appliedFilters.department || "แผนกกระดูกและข้อ"}</span>
+          </div>
         </div>
 
         {/* Applied filters */}
         {(appliedFilters.gender || appliedFilters.time || appliedFilters.available || appliedFilters.date) && (
-          <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <h3 className="text-sm font-medium text-blue-800 mb-2">ตัวกรองที่ใช้:</h3>
-            <div className="flex flex-wrap gap-2">
+          <div className="mb-8 p-6 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl border border-emerald-200 shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
+              <Filter className="h-5 w-5 text-emerald-600" />
+              <h3 className="text-lg font-semibold text-emerald-800">ตัวกรองที่ใช้</h3>
+            </div>
+            <div className="flex flex-wrap gap-3">
               {appliedFilters.gender && (
-                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">เพศ: {appliedFilters.gender}</span>
+                <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-white/80 text-emerald-700 rounded-xl text-sm font-medium border border-emerald-200 shadow-sm">
+                  <User className="h-4 w-4" />
+                  เพศ: {appliedFilters.gender}
+                </span>
               )}
               {appliedFilters.time && (
-                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">เวลา: {appliedFilters.time}</span>
+                <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-white/80 text-emerald-700 rounded-xl text-sm font-medium border border-emerald-200 shadow-sm">
+                  <Clock className="h-4 w-4" />
+                  เวลา: {appliedFilters.time}
+                </span>
               )}
               {appliedFilters.date && (
-                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
-                  วันที่:{" "}
-                  {new Date(appliedFilters.date).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok" })}
+                <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-white/80 text-emerald-700 rounded-xl text-sm font-medium border border-emerald-200 shadow-sm">
+                  <CalendarIcon className="h-4 w-4" />
+                  วันที่: {new Date(appliedFilters.date).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok" })}
                 </span>
               )}
               {appliedFilters.available && (
-                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">แพทย์พร้อมนัด</span>
+                <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-white/80 text-emerald-700 rounded-xl text-sm font-medium border border-emerald-200 shadow-sm">
+                  <CheckCircle className="h-4 w-4" />
+                  แพทย์พร้อมนัด
+                </span>
               )}
             </div>
           </div>
         )}
 
         {/* Doctors grid */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-emerald-100 p-6 mb-8">
           <div className="max-h-[800px] overflow-y-auto">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {currentDoctors.map((doctor) => (
-                <div key={doctor.id} className="bg-white border rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow">
-                  <div className="flex justify-center mb-4">
-                    <div className="w-20 h-20 bg-teal-600 rounded-full flex items-center justify-center">
-                      <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                      </svg>
+                <div 
+                  key={doctor.id} 
+                  className="group bg-white hover:bg-gradient-to-br hover:from-emerald-50 hover:to-teal-50 border border-emerald-200 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 p-6 hover:scale-105"
+                >
+                  <div className="flex justify-center mb-6">
+                    <div className="relative">
+                      <div className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center shadow-lg group-hover:shadow-emerald-200">
+                        <User className="w-10 h-10 text-white" />
+                      </div>
+                      <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white flex items-center justify-center">
+                        <Stethoscope className="w-3 h-3 text-white" />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="text-center mb-4">
-                    <h3 className="font-semibold text-gray-900 mb-1">{doctor.name}</h3>
-                    <p className="text-sm text-gray-600">{doctor.department}</p>
+                  <div className="text-center mb-6">
+                    <h3 className="font-bold text-gray-900 mb-2 text-lg group-hover:text-emerald-800 transition-colors">
+                      {doctor.name}
+                    </h3>
+                    <div className="flex items-center justify-center gap-1.5 mb-2">
+                      <Building className="h-4 w-4 text-emerald-600" />
+                      <p className="text-sm text-gray-600 font-medium">{doctor.department}</p>
+                    </div>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-3">
                     <button
-                      onClick={() =>  goDoc(doctor, "booking")}
-                      className="flex-1 bg-teal-100 text-teal-700 px-3 py-2 rounded text-sm font-medium hover:bg-teal-200 transition-colors flex items-center justify-center gap-1"
+                      onClick={() => goDoc(doctor, "booking")}
+                      className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-emerald-200"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      นัดหมาย
+                      <CalendarIcon className="w-4 h-4" />
+                      <span className="hidden sm:inline">นัดหมาย</span>
                     </button>
 
                     <button
                       onClick={() => goDoc(doctor, "detail")}
-                      className="flex-1 bg-blue-100 text-blue-700 px-3 py-2 rounded text-sm font-medium hover:bg-blue-200 transition-colors flex items-center justify-center gap-1"
+                      className="flex-1 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 hover:border-emerald-400 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow-md"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      รายละเอียด
+                      <User className="w-4 h-4" />
+                      <span className="hidden sm:inline">รายละเอียด</span>
                     </button>
                   </div>
                 </div>
               ))}
               {currentDoctors.length === 0 && (
-                <div className="col-span-full text-center text-gray-600">ไม่พบแพทย์ที่ตรงกับตัวกรอง</div>
+                <div className="col-span-full text-center py-16">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                      <Search className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <div className="text-gray-600">
+                      <h3 className="text-lg font-semibold mb-1">ไม่พบแพทย์ที่ตรงกับการค้นหา</h3>
+                      <p className="text-sm">กรุณาลองเปลี่ยนเงื่อนไขการค้นหาหรือตัวกรอง</p>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </div>
         </div>
 
         {/* Pagination */}
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-gray-700">หน้า {currentPage} จาก {totalPages}</div>
-          <div className="flex items-center space-x-2">
-            <div className="flex space-x-1">
-              {Array.from({ length: Math.min(4, totalPages) }, (_, i) => i + 1).map((pageNum) => (
-                <button
-                  key={pageNum}
-                  onClick={() => setCurrentPage(pageNum)}
-                  className={`w-8 h-8 rounded ${
-                    currentPage === pageNum ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  } transition-colors`}
-                >
-                  {pageNum}
-                </button>
-              ))}
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-emerald-100 p-6 mb-8">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-sm text-gray-600 font-medium">
+              แสดง {((currentPage - 1) * doctorsPerPage) + 1}-{Math.min(currentPage * doctorsPerPage, filteredDoctors.length)} จาก {filteredDoctors.length} แพทย์
+              <span className="text-emerald-600 ml-1">(หน้า {currentPage} จาก {totalPages})</span>
             </div>
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              &lt; ก่อนหน้า
-            </button>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              หน้าต่อไป &gt;
-            </button>
+            
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                ก่อนหน้า
+              </button>
+              
+              <div className="flex space-x-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`w-10 h-10 rounded-lg font-medium transition-all duration-200 ${
+                        currentPage === pageNum 
+                          ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-200" 
+                          : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg hover:from-emerald-600 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium shadow-lg hover:shadow-emerald-200"
+              >
+                หน้าต่อไป
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
+      
+      <Footer />
     </div>
   );
 }

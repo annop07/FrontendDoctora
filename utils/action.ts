@@ -9,7 +9,7 @@ export async function registerAction(formData : FormData){
     console.log(rawData); 
     
     await new Promise (r => setTimeout(r,2000));
-    redirect('/');
+    redirect('/login');
 }
 
 export async function bookingAction(formData : FormData){

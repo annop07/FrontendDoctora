@@ -1,24 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import Navbar from "@/components/Navbar";
 import Banner from "@/components/Banner";
 import Footer from "@/components/Footer";
 
 export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header with Logo */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-5xl mx-auto px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg bg-teal-500" />
-            <h1 className="text-xl font-bold text-gray-800">Logo</h1>
-          </div>
-        </div>
-      </header>
+      <Navbar />
 
       {/* Main Content */}
-      <main className="max-w-5xl mx-auto px-6 py-6">
+      <main className="max-w-6xl mx-auto px-6 py-6">
         {/* Banner Component */}
         <Banner />
 
@@ -55,7 +48,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
             >
               สร้างบัญชีของฉัน
             </button>
