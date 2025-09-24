@@ -284,6 +284,39 @@ export default function LandingPage() {
 
       {/* Footer Component */}
       <Footer />
+
+      {/* Login Required Modal */}
+      {showLoginModal && (
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+          <div className="bg-white/90 backdrop-blur-md rounded-2xl p-8 max-w-md w-full shadow-2xl border border-white/20">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <User className="w-8 h-8 text-amber-600" />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-800 mb-4">
+                จำเป็นต้องเข้าสู่ระบบ
+              </h3>
+              <p className="text-gray-600 mb-6">
+                จำเป็นต้องมีการเข้าสู่ระบบก่อนจึงจะสามารถทำการจองได้
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowLoginModal(false)}
+                  className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  onClick={() => router.push('/login')}
+                  className="flex-1 px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
+                >
+                  เข้าสู่ระบบ
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
