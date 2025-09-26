@@ -1,11 +1,14 @@
 'use client';
 import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import Footer from "@/components/footer";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
-import { CheckCircle, User, Calendar, Clock, Stethoscope, FileCheck, ArrowLeft, Download, Phone, Mail, CreditCard, Globe } from "lucide-react";
+import {
+  CheckCircle, User, Calendar, Clock, Stethoscope,
+  FileCheck, ArrowLeft, Download, Phone, Mail, CreditCard, Globe
+} from "lucide-react";
 
 // Add Thai font support
 import "jspdf/dist/polyfills.es.js";
@@ -24,14 +27,15 @@ interface PatientData {
 
 function mapIllnessLabel(val?: string) {
   if (!val) return "-";
-  
   const map: Record<string, string> = {
-    "auto": "เลือกแพทย์ให้ฉัน",
-    "manual": "ฉันต้องการเลือกแพทย์เอง",
+    auto: "เลือกแพทย์ให้ฉัน",
+    manual: "ฉันต้องการเลือกแพทย์เอง",
   };
-  
   return map[val] || val;
 }
+
+// 🔑 คีย์กลางของ draft ใน sessionStorage
+const DRAFT_KEY = "bookingDraft";
 
 export default function ConfirmPage() {
   const router = useRouter();
@@ -51,34 +55,32 @@ export default function ConfirmPage() {
     return String(nextQueue).padStart(3, "0");
   };
 
+  // ✅ โหลดค่าทั้งหมดจาก sessionStorage (ปรับตรงนี้อย่างเดียว)
   useEffect(() => {
     const patientData = JSON.parse(sessionStorage.getItem("patientData") || "{}");
-    const bookingData = JSON.parse(sessionStorage.getItem("bookingDraft") || "{}");
+    const bookingData = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || "{}");
 
     setPatient(patientData);
     setDepart(bookingData.depart || "");
-    setIllness(bookingData.illness || "");
+
+    // รองรับทั้ง illness และ selection (auto/manual)
+    const illnessValue: string = bookingData.illness ?? bookingData.selection ?? "";
+    setIllness(illnessValue);
+
     setDoctor(bookingData.selectedDoctor || "");
+
     if (bookingData.selectedDate) {
       const d = new Date(bookingData.selectedDate);
       setSelectedDate(isNaN(+d) ? String(bookingData.selectedDate) : d.toLocaleDateString("th-TH"));
     }
     setSelectedTime(bookingData.selectedTime || "");
-    
-    // สร้างหมายเลขคิวตั้งแต่เริ่มต้น
+
     setQueue(getNextQueue());
   }, []);
 
   const createPDFFromCanvas = async (canvas: HTMLCanvasElement, queueNumber: string) => {
     try {
-      const pdf = new jsPDF({ 
-        orientation: "portrait", 
-        unit: "mm", 
-        format: "a4",
-        compress: true
-      });
-
-      // Add Thai font support
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
       pdf.addFont('/fonts/THSarabunNew.ttf', 'THSarabunNew', 'normal');
       pdf.setFont('THSarabunNew');
 
@@ -115,14 +117,8 @@ export default function ConfirmPage() {
 
   const createTextBasedPDF = (queueNumber: string) => {
     try {
-      const pdf = new jsPDF({ 
-        orientation: "portrait", 
-        unit: "mm", 
-        format: "a4",
-        compress: true
-      });
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
 
-      // Try to add Thai font, fallback to default if not available
       try {
         pdf.addFont('/fonts/THSarabunNew.ttf', 'THSarabunNew', 'normal');
         pdf.setFont('THSarabunNew');
@@ -131,20 +127,20 @@ export default function ConfirmPage() {
       }
 
       let y = 25;
-      
-      // Header with logo
+
+      // Header
       pdf.setFontSize(24);
-      pdf.setTextColor(40, 107, 129); // #286B81
+      pdf.setTextColor(40, 107, 129);
       pdf.text("doctora", 105, y, { align: "center" });
       y += 15;
-      
+
       pdf.setFontSize(18);
       pdf.setTextColor(0, 0, 0);
       pdf.text("ใบยืนยันการนัดหมาย", 105, y, { align: "center" });
       pdf.text("APPOINTMENT CONFIRMATION", 105, y + 7, { align: "center" });
       y += 25;
 
-      // Queue number box
+      // Queue box
       pdf.setFillColor(240, 248, 255);
       pdf.rect(20, y - 8, 170, 15, 'F');
       pdf.setFontSize(14);
@@ -152,7 +148,7 @@ export default function ConfirmPage() {
       pdf.text(`หมายเลขคิว / Queue Number: ${queueNumber}`, 25, y, { align: "left" });
       y += 20;
 
-      // Patient Information Section
+      // Patient info
       pdf.setFontSize(14);
       pdf.setTextColor(40, 107, 129);
       pdf.text("ข้อมูลผู้ป่วย / PATIENT INFORMATION", 20, y);
@@ -178,7 +174,6 @@ export default function ConfirmPage() {
 
       patientFields.forEach(([label, value]) => {
         const text = `${label}: ${value}`;
-        // Handle long text wrapping
         const lines = pdf.splitTextToSize(text, 170);
         pdf.text(lines, 25, y);
         y += lines.length * 6;
@@ -186,7 +181,7 @@ export default function ConfirmPage() {
 
       y += 10;
 
-      // Appointment Details Section
+      // Appointment details
       pdf.setFontSize(14);
       pdf.setTextColor(40, 107, 129);
       pdf.text("รายละเอียดการนัดหมาย / APPOINTMENT DETAILS", 20, y);
@@ -238,7 +233,7 @@ export default function ConfirmPage() {
 
       const element = originalElement.cloneNode(true) as HTMLElement;
 
-      // Add logo and styling
+      // add logo
       const logoDiv = document.createElement('div');
       logoDiv.innerHTML = `
         <div style="text-align: center; font-size: 28px; font-weight: bold; color: #286B81; margin-bottom: 20px; font-family: 'Sarabun', Arial, sans-serif;">
@@ -247,11 +242,11 @@ export default function ConfirmPage() {
       `;
       element.insertBefore(logoDiv, element.firstChild);
 
-      // Remove buttons
+      // remove buttons
       const buttons = element.querySelector('.button-container') as HTMLElement;
       if (buttons) buttons.remove();
 
-      // Apply Thai font styling
+      // style for canvas
       element.style.position = 'absolute';
       element.style.top = '-9999px';
       element.style.left = '-9999px';
@@ -263,7 +258,6 @@ export default function ConfirmPage() {
       element.style.lineHeight = '1.6';
       document.body.appendChild(element);
 
-      // Wait for fonts to load
       await new Promise(r => setTimeout(r, 500));
 
       try {
@@ -296,8 +290,8 @@ export default function ConfirmPage() {
 
   const handleConfirm = async () => {
     setIsLoading(true);
-    
-    // บันทึกประวัติการจองลง localStorage
+
+    // save booking history by user
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     if (user.email) {
       const bookingRecord = {
@@ -309,19 +303,18 @@ export default function ConfirmPage() {
         appointmentType: mapIllnessLabel(illness),
         date: selectedDate,
         time: selectedTime,
-        status: "กำลังรอ", // เริ่มต้นด้วยสถานะกำลังรอ
+        status: "กำลังรอ",
         statusColor: "text-amber-600 bg-amber-50",
         createdAt: new Date().toISOString(),
         userEmail: user.email
       };
-      
-      // เก็บประวัติแยกตาม email ของผู้ใช้
+
       const historyKey = `bookingHistory_${user.email}`;
       const existingHistory = JSON.parse(localStorage.getItem(historyKey) || '[]');
       existingHistory.push(bookingRecord);
       localStorage.setItem(historyKey, JSON.stringify(existingHistory));
     }
-    
+
     await new Promise(resolve => setTimeout(resolve, 100));
     const success = await exportPDF(queue);
     if (success) {
@@ -332,7 +325,7 @@ export default function ConfirmPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
       <Navbar />
-      
+
       {/* Header Section */}
       <div className="bg-gradient-to-r from-emerald-700 to-green-800 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-8">
@@ -348,8 +341,10 @@ export default function ConfirmPage() {
 
       {/* Main Content */}
       <div className="max-w-5xl mx-auto px-4 py-8">
-        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-100 overflow-hidden" id="booking-confirm">
-          
+        <div
+          className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl border border-emerald-100 overflow-hidden"
+          id="booking-confirm"
+        >
           {/* Queue Number Banner */}
           <div className="bg-gradient-to-r from-emerald-600 to-green-700 p-6">
             <div className="flex items-center justify-center space-x-3">
@@ -368,17 +363,19 @@ export default function ConfirmPage() {
                 <User className="w-6 h-6 text-emerald-600" />
                 <h3 className="text-xl font-bold text-gray-800">ข้อมูลผู้ป่วย</h3>
               </div>
-              
+
               <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl p-6 border border-emerald-200">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="flex items-center space-x-3">
                     <User className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                     <div>
                       <p className="text-sm text-gray-600">ชื่อ-นามสกุล</p>
-                      <p className="font-semibold text-gray-800">{patient.prefix} {patient.firstName || "-"} {patient.lastName || "-"}</p>
+                      <p className="font-semibold text-gray-800">
+                        {patient.prefix} {patient.firstName || "-"} {patient.lastName || "-"}
+                      </p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <User className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                     <div>
@@ -386,7 +383,7 @@ export default function ConfirmPage() {
                       <p className="font-semibold text-gray-800">{patient.gender || "-"}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <Calendar className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                     <div>
@@ -394,7 +391,7 @@ export default function ConfirmPage() {
                       <p className="font-semibold text-gray-800">{patient.dob || "-"}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <Globe className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                     <div>
@@ -402,7 +399,7 @@ export default function ConfirmPage() {
                       <p className="font-semibold text-gray-800">{patient.nationality || "-"}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <CreditCard className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                     <div>
@@ -410,7 +407,7 @@ export default function ConfirmPage() {
                       <p className="font-semibold text-gray-800">{patient.citizenId || "-"}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <Phone className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                     <div>
@@ -418,7 +415,7 @@ export default function ConfirmPage() {
                       <p className="font-semibold text-gray-800">{patient.phone || "-"}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-3 md:col-span-2">
                     <Mail className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                     <div>
@@ -436,7 +433,7 @@ export default function ConfirmPage() {
                 <Stethoscope className="w-6 h-6 text-emerald-600" />
                 <h3 className="text-xl font-bold text-gray-800">รายละเอียดการนัดหมาย</h3>
               </div>
-              
+
               <div className="bg-gradient-to-r from-teal-50 to-emerald-50 rounded-xl p-6 border border-emerald-200">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="flex items-center space-x-3">
@@ -446,7 +443,7 @@ export default function ConfirmPage() {
                       <p className="font-semibold text-gray-800">{depart || "-"}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <FileCheck className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                     <div>
@@ -454,7 +451,7 @@ export default function ConfirmPage() {
                       <p className="font-semibold text-gray-800">{mapIllnessLabel(illness)}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <User className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                     <div>
@@ -462,7 +459,7 @@ export default function ConfirmPage() {
                       <p className="font-semibold text-gray-800">{doctor || "-"}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <Clock className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                     <div>
@@ -488,8 +485,8 @@ export default function ConfirmPage() {
               <button
                 onClick={handleConfirm}
                 className={`flex items-center gap-2 px-8 py-4 rounded-2xl transition-all duration-200 shadow-lg font-semibold ${
-                  isLoading 
-                    ? "bg-gray-400 text-gray-200 cursor-not-allowed" 
+                  isLoading
+                    ? "bg-gray-400 text-gray-200 cursor-not-allowed"
                     : "bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-xl transform hover:-translate-y-0.5"
                 }`}
                 disabled={isLoading}
@@ -510,7 +507,7 @@ export default function ConfirmPage() {
           </div>
         </div>
       </div>
-      
+
       <Footer />
     </div>
   );

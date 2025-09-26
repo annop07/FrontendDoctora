@@ -4,8 +4,11 @@ import React, { useEffect, useState } from 'react';
 import { Heart, Clock, Users, Stethoscope, Calendar, ArrowRight, User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Navbar from "@/components/Navbar";
-import Banner from "@/components/Banner";
-import Footer from "@/components/Footer";
+import Banner from "@/components/banner";
+import Footer from "@/components/footer";
+
+// ⬇️ เพิ่มคีย์กลางไว้ใช้กับ sessionStorage
+const DRAFT_KEY = 'bookingDraft';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -18,9 +21,17 @@ export default function LandingPage() {
     setIsClient(true);
   }, []);
 
+  // ⬇️ โหลดค่าที่เคยเลือกไว้ (auto/manual) เมื่อเข้าหน้านี้
+  useEffect(() => {
+    if (!isClient) return;
+    const draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
+    if (draft.illness === 'auto' || draft.illness === 'manual') {
+      setSelectedOption(draft.illness);
+    }
+  }, [isClient]);
+
   // ตรวจสอบสถานะการเข้าสู่ระบบ
   const isLoggedIn = () => {
-    // ตรวจสอบจาก localStorage
     if (typeof window !== 'undefined') {
       const savedUser = localStorage.getItem('user');
       return !!savedUser;
@@ -28,25 +39,21 @@ export default function LandingPage() {
     return false;
   };
 
-  // เมื่อผู้ใช้เลือก option ให้เก็บลง sessionStorage.bookingDraft.illness
+  // ⬇️ เซฟค่า illness ลง draft ทุกครั้งที่ผู้ใช้เปลี่ยนตัวเลือก
   useEffect(() => {
     if (!selectedOption || !isClient) return;
-    
-    // ตรวจสอบว่า sessionStorage พร้อมใช้งานหรือไม่
-    if (typeof window !== 'undefined' && window.sessionStorage) {
-      // อ่าน draft เดิม (ถ้ามี)
-      const draft = JSON.parse(sessionStorage.getItem('bookingDraft') || '{}');
-
-      // เก็บประเภทเป็นค่า auto/manual
-      draft.illness = selectedOption;
-
-      // เคลียร์ค่าที่อาจค้างจากการจองครั้งก่อน (กันแสดงข้อมูลเก่า)
-      draft.selectedDoctor = '';
-      draft.selectedDate   = '';
-      draft.selectedTime   = '';
-
-      sessionStorage.setItem('bookingDraft', JSON.stringify(draft));
-    }
+    const draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
+    sessionStorage.setItem(
+      DRAFT_KEY,
+      JSON.stringify({
+        ...draft,
+        illness: selectedOption,     // "auto" | "manual"
+        // เคลียร์ค่าจองเก่าที่อาจค้าง
+        selectedDoctor: '',
+        selectedDate: '',
+        selectedTime: '',
+      })
+    );
   }, [selectedOption, isClient]);
 
   const handleNext = () => {
@@ -55,20 +62,21 @@ export default function LandingPage() {
       return;
     }
 
-    // เช็คสถานะการเข้าสู่ระบบ
+    // ถ้ายังไม่ล็อกอินให้เด้ง modal
     if (!isLoggedIn()) {
       setShowLoginModal(true);
       return;
     }
-    
-    // ตรวจสอบว่าเรากำลังรันใน client
-    if (typeof window !== 'undefined') {
-      // ทุกตัวเลือกต้องไปหน้า depart ก่อนเพื่อเลือกแผนก
-      router.push(`/depart?selection=${selectedOption}`);
-    }
+
+    // ⬇️ กันเคสผู้ใช้กดเร็ว: ยืนยันเซฟ illness อีกรอบก่อนนำทาง
+    const draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, illness: selectedOption }));
+
+    router.push(`/depart?selection=${selectedOption}`);
   };
 
-  // Features data
+  // ---- ส่วนเดิมทั้งหมดด้านล่างไม่เปลี่ยน ----
+
   const features = [
     {
       icon: Heart,
@@ -90,13 +98,10 @@ export default function LandingPage() {
     }
   ];
 
-  // แสดง loading หรือ placeholder ในขณะที่รอ client hydrate
   if (!isClient) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
         <Navbar />
-
-        {/* Loading placeholder */}
         <main className="max-w-6xl mx-auto px-6 py-6">
           <div className="flex justify-center items-center min-h-96">
             <div className="text-center">
@@ -105,7 +110,6 @@ export default function LandingPage() {
             </div>
           </div>
         </main>
-
         <Footer />
       </div>
     );
@@ -251,10 +255,8 @@ export default function LandingPage() {
         </div>
       </main>
 
-      {/* Footer Component */}
       <Footer />
 
-      {/* Login Required Modal */}
       {showLoginModal && (
         <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50 px-4">
           <div className="bg-white/90 backdrop-blur-md rounded-2xl p-8 max-w-md w-full shadow-2xl border border-white/20">

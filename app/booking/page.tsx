@@ -20,22 +20,31 @@ export default function BookingPage() {
   const [illness,setIllness] = useState("");
 
   //เก็บstateตอนกดกลับจากหน้า patientForm
-  useEffect(() => {
-    const raw = sessionStorage.getItem(DRAFT_KEY);
-    if(!raw) return;
-    const d = JSON.parse(raw);
-    if (!depart && d.depart) setDepart(d.depart);
-    if (d.selectedTime) setSelectedTime(d.selectedTime);
-    if (d.selectedDate) setSelectedDate(new Date(d.selectedDate));
-    
-    // ไม่ให้ตั้งค่า illness เป็น "auto"
-    if (d.illness && d.illness !== "auto") setIllness(d.illness);
-  }, []);
+  const selectionParam = searchParams.get("selection");
 
   useEffect(() => {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    const stored = raw ? JSON.parse(raw) : {};
+
+    if (!depart && stored.depart) setDepart(stored.depart);
+    if (!selectedTime && stored.selectedTime) setSelectedTime(stored.selectedTime);
+    if (!selectedDate && stored.selectedDate) setSelectedDate(new Date(stored.selectedDate));
+
+    if (!illness && stored.illness) {
+      setIllness(stored.illness);
+    } else if (!stored.illness && selectionParam) {
+      setIllness(selectionParam);
+    }
+  }, [depart, selectedTime, selectedDate, illness, selectionParam]);
+
+  useEffect(() => {
+    const existingRaw = sessionStorage.getItem(DRAFT_KEY);
+    const existing = existingRaw ? JSON.parse(existingRaw) : {};
+
     sessionStorage.setItem(
         DRAFT_KEY,
         JSON.stringify({
+            ...existing,
             depart,
             selectedTime,
             selectedDate: selectedDate?.toISOString() ?? null,
