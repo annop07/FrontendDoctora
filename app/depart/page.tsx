@@ -1,43 +1,36 @@
 "use client";
-
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { apiService, type Specialty } from "@/lib/api-service";
-import { Stethoscope, ArrowRight, ArrowLeft, Heart } from "lucide-react";
+import { Stethoscope, ArrowRight, ArrowLeft, Heart, Activity, Brain, Zap, Baby, UserCheck, Scissors, Shield, Waves, Bone, HeartHandshake, Users, Ear, Sparkles, HeartPulse, User, Radiation } from "lucide-react";
+
+const departmentData = [
+  { name: "กระดูกและข้อ", icon: Bone, color: "from-emerald-500 to-teal-600" },
+  { name: "กุมารเวชกรรม", icon: Baby, color: "from-green-500 to-emerald-600" },
+  { name: "นรีเวชกรรม", icon: UserCheck, color: "from-teal-500 to-cyan-600" },
+  { name: "ผิวหนัง", icon: Sparkles, color: "from-emerald-600 to-green-700" },
+  { name: "ศัลยกรรมตกแต่ง", icon: Scissors, color: "from-cyan-500 to-teal-600" },
+  { name: "ศัลยกรรมทั่วไป", icon: Activity, color: "from-green-600 to-emerald-700" },
+  { name: "สุขภาพเพศชาย", icon: Shield, color: "from-teal-600 to-emerald-700" },
+  { name: "สมองและไขสันหลัง", icon: Brain, color: "from-emerald-500 to-green-600" },
+  { name: "หลอดเลือด", icon: Waves, color: "from-green-500 to-teal-600" },
+  { name: "หัวใจและทรวงอก", icon: Heart, color: "from-emerald-600 to-teal-700" },
+  { name: "ศัลยกรรมเด็ก", icon: HeartHandshake, color: "from-teal-500 to-green-600" },
+  { name: "มะเร็งเต้านม", icon: Radiation, color: "from-emerald-500 to-teal-600" },
+  { name: "สุขภาพจิต", icon: Users, color: "from-green-500 to-emerald-600" },
+  { name: "บุคคลข้ามเพศ", icon: User, color: "from-emerald-700 to-green-800" },
+  { name: "หู คอ จมูก", icon: Ear, color: "from-emerald-600 to-green-700" },
+  { name: "เวชศาสตร์นิวเคลียร์", icon: Zap, color: "from-green-600 to-teal-700" },
+  { name: "โรคหัวใจ", icon: HeartPulse, color: "from-emerald-500 to-teal-600" }
+];
 
 export default function DepartPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [specialties, setSpecialties] = useState<Specialty[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>('');
-  const [selected, setSelected] = useState<string>("");
+  const [selected, setSelected] = useState<string>("กระดูกและข้อ");
   const [userSelection, setUserSelection] = useState<string>("");
-
-  // Load specialties from backend
-  useEffect(() => {
-    const loadSpecialties = async () => {
-      try {
-        const response = await apiService.getSpecialtiesWithCount();
-        setSpecialties(response.specialties);
-        
-        // Set default selection to first specialty
-        if (response.specialties.length > 0) {
-          setSelected(response.specialties[0].name);
-        }
-      } catch (error) {
-        console.error('Failed to load specialties:', error);
-        setError('Failed to load specialties');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    loadSpecialties();
-  }, []);
 
   // รับ selection จาก URL + sync เข้า sessionStorage.bookingDraft
   useEffect(() => {
@@ -80,46 +73,6 @@ export default function DepartPage() {
     router.push("/");
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
-        <Navbar />
-        <main className="container mx-auto px-6 py-12">
-          <div className="flex justify-center items-center min-h-96">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
-              <p className="text-emerald-700 font-medium">กำลังโหลดแผนก...</p>
-            </div>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
-        <Navbar />
-        <main className="container mx-auto px-6 py-12">
-          <div className="text-center">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-              <h3 className="text-red-800 font-medium">เกิดข้อผิดพลาด</h3>
-              <p className="text-red-700 text-sm mt-1">{error}</p>
-              <button 
-                onClick={() => window.location.reload()}
-                className="mt-3 text-sm bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
-              >
-                ลองใหม่
-              </button>
-            </div>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
       <Navbar />
@@ -159,12 +112,13 @@ export default function DepartPage() {
         {/* Department Grid */}
         <div className="max-w-6xl mx-auto mb-12">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {specialties.map((specialty, index) => {
-              const isActive = selected === specialty.name;
+            {departmentData.map((dept, index) => {
+              const isActive = selected === dept.name;
+              const IconComponent = dept.icon;
               return (
                 <button
-                  key={specialty.id}
-                  onClick={() => setSelected(specialty.name)}
+                  key={index}
+                  onClick={() => setSelected(dept.name)}
                   className={`
                     group relative overflow-hidden rounded-2xl p-4 h-24 transition-all duration-300 border-2
                     ${isActive 
@@ -173,22 +127,22 @@ export default function DepartPage() {
                     }
                   `}
                 >
+                  {/* Background Gradient */}
+                  {isActive && (
+                    <div className={`absolute inset-0 bg-gradient-to-r ${dept.color} opacity-5`}></div>
+                  )}
+                  
                   <div className="relative flex flex-col items-center justify-center h-full">
                     <div className={`mb-2 transition-colors ${
                       isActive ? 'text-emerald-600' : 'text-emerald-500 group-hover:text-emerald-600'
                     }`}>
-                      <Stethoscope className="w-5 h-5" />
+                      <IconComponent className="w-5 h-5" />
                     </div>
                     <span className={`text-xs font-medium text-center leading-tight transition-colors ${
                       isActive ? 'text-emerald-800' : 'text-emerald-700 group-hover:text-emerald-800'
                     }`}>
-                      {specialty.name}
+                      {dept.name}
                     </span>
-                    {specialty.doctorCount !== undefined && (
-                      <span className="text-xs text-gray-500 mt-1">
-                        {specialty.doctorCount} หมอ
-                      </span>
-                    )}
                   </div>
                   
                   {/* Active Indicator */}
@@ -203,6 +157,7 @@ export default function DepartPage() {
 
         {/* Action Buttons */}
         <div className="relative">
+          {/* Background line */}
           <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-32 h-0.5 bg-emerald-200 -z-10"></div>
           
           <div className="flex items-center justify-center gap-150">
@@ -218,8 +173,7 @@ export default function DepartPage() {
             <button
               type="button"
               onClick={handleNext}
-              disabled={!selected}
-              className="relative z-10 flex items-center gap-2 px-8 py-4 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-semibold"
+              className="relative z-10 flex items-center gap-2 px-8 py-4 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-semibold"
             >
               ต่อไป
               <ArrowRight className="w-5 h-5" />

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { AuthService } from '@/lib/auth-service';
+import { getAuthHeaders, handleApiError } from '@/lib/auth-utils';
 
 interface Doctor {
   id: number;
@@ -13,9 +13,6 @@ interface Doctor {
   consultationFee: number;
   roomNumber: string;
   isActive: boolean;
-  bio?: string;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
 interface Specialty {
@@ -23,7 +20,6 @@ interface Specialty {
   name: string;
   description: string;
   doctorCount: number;
-  createdAt?: string;
 }
 
 interface User {
@@ -32,12 +28,6 @@ interface User {
   firstName: string;
   lastName: string;
   role: string;
-  createdAt?: string;
-}
-
-interface DoctorStats {
-  totalDoctors: number;
-  totalSpecialties: number;
 }
 
 type BackendStatus = 'checking' | 'connected' | 'disconnected';
@@ -56,8 +46,6 @@ interface UseAdminDataReturn {
   checkBackendConnection: () => Promise<void>;
   toggleDoctorStatus: (doctorId: number, currentStatus: boolean) => Promise<void>;
   deleteSpecialty: (specialtyId: number) => Promise<void>;
-  getAuthHeaders: () => Record<string, string>;
-  handleApiError: (response: Response, context: string) => Promise<void>;
 }
 
 export const useAdminData = (apiBaseUrl: string): UseAdminDataReturn => {
@@ -79,14 +67,14 @@ export const useAdminData = (apiBaseUrl: string): UseAdminDataReturn => {
       
       // Calculate current doctor counts for each specialty
       specialties.forEach(specialty => {
-        const activeDoctorsCount = doctors.filter(doctor => 
+        const activeDocotrsCount = doctors.filter(doctor => 
           doctor.specialty.id === specialty.id && doctor.isActive
         ).length;
-        currentCounts.set(specialty.id, activeDoctorsCount);
+        currentCounts.set(specialty.id, activeDocotrsCount);
         
         // Check if count changed for this specialty
         const previousCount = previousDoctorCountsRef.current.get(specialty.id);
-        if (previousCount !== activeDoctorsCount) {
+        if (previousCount !== activeDocotrsCount) {
           hasChanged = true;
         }
       });
@@ -104,51 +92,9 @@ export const useAdminData = (apiBaseUrl: string): UseAdminDataReturn => {
     }
   }, [doctors]); // Only depend on doctors array
 
-  const getAuthHeaders = () => {
-    try {
-      return AuthService.getAuthHeaders();
-    } catch (error) {
-      console.error('Failed to get auth headers:', error);
-      throw new Error('No authentication token found. Please login again.');
-    }
-  };
-
-  const handleApiError = async (response: Response, context: string) => {
-    const contentType = response.headers.get('content-type');
-    
-    if (contentType && contentType.includes('application/json')) {
-      try {
-        const errorData = await response.json();
-        const errorMessage = errorData.message || `${context} failed`;
-        throw new Error(errorMessage);
-      } catch (jsonError) {
-        throw new Error(`${context} failed with status ${response.status}`);
-      }
-    } else {
-      // HTML response means we probably hit a Next.js route instead of backend
-      const text = await response.text();
-      console.error('Non-JSON response:', text.substring(0, 500));
-      
-      if (text.includes('<!DOCTYPE html>')) {
-        throw new Error(`API request was handled by Next.js instead of backend. Please check:\n1. Backend is running on ${apiBaseUrl}\n2. CORS is configured properly\n3. API endpoints exist`);
-      }
-      
-      if (response.status === 404) {
-        throw new Error(`API endpoint not found. Please check if backend is running and endpoint exists.`);
-      } else if (response.status === 401 || response.status === 403) {
-        throw new Error(`Authentication failed. Please login again or check admin permissions.`);
-      } else {
-        throw new Error(`${context} failed: Server returned HTML instead of JSON (Status: ${response.status})`);
-      }
-    }
-  };
-
   const checkBackendConnection = async () => {
     try {
       console.log('Checking backend connection to:', apiBaseUrl);
-      setBackendStatus('checking');
-      setError('');
-      
       const response = await fetch(`${apiBaseUrl}/api/specialties`, {
         method: 'GET',
         headers: {
@@ -158,7 +104,6 @@ export const useAdminData = (apiBaseUrl: string): UseAdminDataReturn => {
       
       if (response.ok) {
         setBackendStatus('connected');
-        console.log('Backend connection successful');
         loadData();
       } else {
         throw new Error(`Backend responded with status ${response.status}`);
@@ -175,9 +120,7 @@ export const useAdminData = (apiBaseUrl: string): UseAdminDataReturn => {
       console.log('Loading doctors from:', `${apiBaseUrl}/api/doctors`);
       
       // For admin dashboard, include inactive doctors by adding the parameter
-      const response = await fetch(`${apiBaseUrl}/api/doctors?includeInactive=true`, {
-        headers: getAuthHeaders()
-      });
+      const response = await fetch(`${apiBaseUrl}/api/doctors?includeInactive=true`);
       
       console.log('Doctors response status:', response.status);
       console.log('Doctors response headers:', Object.fromEntries(response.headers.entries()));
@@ -192,22 +135,15 @@ export const useAdminData = (apiBaseUrl: string): UseAdminDataReturn => {
         console.error('Doctors endpoint failed:', response.status, responseText);
         
         if (response.status === 401 || response.status === 403) {
-          console.warn('Authentication issue with doctors endpoint, trying public endpoint');
-          
-          // Try public endpoint as fallback
-          const publicResponse = await fetch(`${apiBaseUrl}/api/doctors`);
-          if (publicResponse.ok) {
-            const publicData = await publicResponse.json();
-            setDoctors(publicData.doctors || []);
-          } else {
-            setDoctors([]);
-          }
-        } else {
-          setDoctors([]);
+          console.warn('Authentication issue with doctors endpoint, using fallback data');
         }
+        
+        // Use fallback data instead of throwing error
+        setDoctors([]);
       }
     } catch (error) {
       console.error('Error loading doctors:', error);
+      // Use fallback data
       setDoctors([]);
     }
   };
@@ -266,13 +202,6 @@ export const useAdminData = (apiBaseUrl: string): UseAdminDataReturn => {
           firstName: 'Emily', 
           lastName: 'Davis', 
           role: 'DOCTOR' 
-        },
-        { 
-          id: 5, 
-          email: 'thai.doctor@example.com', 
-          firstName: 'นพ.สมชาย', 
-          lastName: 'ใจดี', 
-          role: 'DOCTOR' 
         }
       ]);
     }
@@ -307,15 +236,13 @@ export const useAdminData = (apiBaseUrl: string): UseAdminDataReturn => {
       }
     } catch (error) {
       console.error('Error loading specialties, using fallback data:', error);
-      
       // Use fallback data for demonstration
       setSpecialties([
-        { id: 1, name: 'กระดูกและข้อ', description: 'ผู้เชี่ยวชาญด้านกระดูกและข้อ', doctorCount: 0 },
-        { id: 2, name: 'กุมารเวชกรรม', description: 'แพทย์เด็ก', doctorCount: 0 },
-        { id: 3, name: 'นรีเวชกรรม', description: 'แพทย์หญิง', doctorCount: 0 },
-        { id: 4, name: 'หัวใจและทรวงอก', description: 'ผู้เชี่ยวชาญด้านหัวใจ', doctorCount: 0 },
-        { id: 5, name: 'ศัลยกรรมทั่วไป', description: 'ศัลยแพทย์ทั่วไป', doctorCount: 0 },
-        { id: 6, name: 'ผิวหนัง', description: 'ผู้เชี่ยวชาญด้านผิวหนัง', doctorCount: 0 }
+        { id: 1, name: 'Cardiology', description: 'Heart and cardiovascular diseases', doctorCount: 5 },
+        { id: 2, name: 'Pediatrics', description: 'Medical care for children', doctorCount: 3 },
+        { id: 3, name: 'Internal Medicine', description: 'General internal medicine', doctorCount: 7 },
+        { id: 4, name: 'Surgery', description: 'Surgical procedures', doctorCount: 4 },
+        { id: 5, name: 'Emergency Medicine', description: 'Emergency care', doctorCount: 6 }
       ]);
     }
   };
@@ -370,19 +297,21 @@ export const useAdminData = (apiBaseUrl: string): UseAdminDataReturn => {
           }));
         }
         
-        console.log(`Doctor status updated to ${!currentStatus ? 'Active' : 'Inactive'} successfully!`);
+        alert(`Doctor status updated to ${!currentStatus ? 'Active' : 'Inactive'} successfully!`);
       } else {
         await handleApiError(response, 'Updating doctor status');
       }
     } catch (error) {
       console.error('Error updating doctor status:', error);
-      throw new Error('Error updating status: ' + (error as Error).message);
+      alert('Error updating status: ' + (error as Error).message);
     } finally {
       setLoading(false);
     }
   };
 
-  const deleteSpecialty = async (specialtyId: number) => {    
+  const deleteSpecialty = async (specialtyId: number) => {
+    if (!confirm('Are you sure you want to delete this specialty?')) return;
+    
     setLoading(true);
     try {
       const response = await fetch(`${apiBaseUrl}/api/admin/specialties/${specialtyId}`, {
@@ -392,13 +321,13 @@ export const useAdminData = (apiBaseUrl: string): UseAdminDataReturn => {
 
       if (response.ok) {
         setSpecialties(specialties.filter(s => s.id !== specialtyId));
-        console.log('Specialty deleted successfully!');
+        alert('Specialty deleted successfully!');
       } else {
         await handleApiError(response, 'Deleting specialty');
       }
     } catch (error) {
       console.error('Error deleting specialty:', error);
-      throw new Error('Error deleting specialty: ' + (error as Error).message);
+      alert('Error deleting specialty: ' + (error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -417,8 +346,6 @@ export const useAdminData = (apiBaseUrl: string): UseAdminDataReturn => {
     loadUsers,
     checkBackendConnection,
     toggleDoctorStatus,
-    deleteSpecialty,
-    getAuthHeaders,
-    handleApiError
+    deleteSpecialty
   };
 };

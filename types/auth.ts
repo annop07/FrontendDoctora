@@ -1,9 +1,8 @@
 export interface RegisterRequest {
   email: string;
   password: string;
-  firstName?: string;
-  lastName?: string;
-  role?: 'PATIENT' | 'DOCTOR' | 'ADMIN';
+  firstName?: string;  // Make optional
+  lastName?: string;   // Make optional
 }
 
 export interface LoginRequest {
@@ -16,22 +15,22 @@ export interface LoginResponse {
   type: string;
   id: number;
   email: string;
-  firstName: string;
-  lastName: string;
+  firstName: string | null;    // Can be null
+  lastName: string | null;     // Can be null
   role: 'PATIENT' | 'DOCTOR' | 'ADMIN';
+}
+
+export interface MessageResponse {
+  message: string;
 }
 
 export interface User {
   id: number;
   email: string;
-  firstName: string;
-  lastName: string;
+  firstName: string | null;    // Can be null
+  lastName: string | null;     // Can be null
   fullName: string;
   role: 'PATIENT' | 'DOCTOR' | 'ADMIN';
   phone?: string;
   createdAt: string;
-}
-
-export interface MessageResponse {
-  message: string;
 }

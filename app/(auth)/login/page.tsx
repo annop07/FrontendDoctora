@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AuthService } from "@/lib/auth-service";
 import Navbar from "@/components/Navbar";
 import Banner from "@/components/Banner";
 import Footer from "@/components/Footer";
+import { AuthService } from "@/lib/auth-service";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -23,29 +23,26 @@ export default function LoginPage() {
     try {
       const response = await AuthService.login({ email, password });
       
-      // Store token and user data
+      // Store JWT token
       AuthService.setToken(response.token);
       
-      // Store user data for navbar
+      // Store user data - handle null names
       const userData = {
         id: response.id,
         email: response.email,
         firstName: response.firstName,
         lastName: response.lastName,
-        role: response.role,
+        role: response.role
       };
       localStorage.setItem('user', JSON.stringify(userData));
       
       // Redirect based on role
-      switch (response.role) {
-        case 'ADMIN':
-          router.push('/admin');
-          break;
-        case 'DOCTOR':
-          router.push('/dashboard');
-          break;
-        default:
-          router.push('/');
+      if (response.role === 'ADMIN') {
+        router.push('/admin');
+      } else if (response.role === 'DOCTOR') {
+        router.push('/dashboard');
+      } else {
+        router.push('/');
       }
       
       // Refresh page to update navbar
@@ -54,7 +51,7 @@ export default function LoginPage() {
       }, 100);
       
     } catch (error) {
-      setError(error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
+      setError(error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
     } finally {
       setIsLoading(false);
     }
@@ -63,8 +60,13 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
+
+      {/* Main Content */}
       <main className="max-w-6xl mx-auto px-6 py-6">
+        {/* Banner Component */}
         <Banner />
+
+        {/* Login Form Section */}
         <div className="max-w-md mx-auto mt-8">
           <div className="text-center mb-6">
             <h2 className="text-2xl font-bold text-gray-800 mb-2">ลงชื่อเข้าใช้</h2>
@@ -74,7 +76,7 @@ export default function LoginPage() {
             <div>
               <input
                 type="email"
-                placeholder="email"
+                placeholder="อีเมล"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
@@ -85,7 +87,7 @@ export default function LoginPage() {
             <div>
               <input
                 type="password"
-                placeholder="password"
+                placeholder="รหัสผ่าน"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
@@ -100,8 +102,8 @@ export default function LoginPage() {
             )}
 
             <div className="text-center">
-              <p className="text-red-500 text-sm mb-4">
-                ยังไม่มีบัญชีหรือไม่? <Link href="/register" className="hover:underline">คลิกลงทะเบียน</Link>
+              <p className="text-gray-600 text-sm mb-4">
+                ยังไม่มีบัญชีหรือไม่? <Link href="/register" className="text-emerald-600 hover:underline">คลิกลงชื่อ</Link>
               </p>
             </div>
 
@@ -115,6 +117,8 @@ export default function LoginPage() {
           </form>
         </div>
       </main>
+
+      {/* Footer Component */}
       <Footer />
     </div>
   );

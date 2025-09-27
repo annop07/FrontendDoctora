@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { getAuthHeaders, handleApiError } from '@/lib/auth-utils';
 
 interface Doctor {
   id: number;
@@ -37,8 +38,6 @@ interface DoctorFormProps {
   specialties: Specialty[];
   doctors: Doctor[];
   apiBaseUrl: string;
-  getAuthHeaders: () => Record<string, string>;
-  handleApiError: (response: Response, context: string) => Promise<void>;
 }
 
 const DoctorForm: React.FC<DoctorFormProps> = ({
@@ -48,9 +47,7 @@ const DoctorForm: React.FC<DoctorFormProps> = ({
   users,
   specialties,
   doctors,
-  apiBaseUrl,
-  getAuthHeaders,
-  handleApiError
+  apiBaseUrl
 }) => {
   const [formData, setFormData] = useState({
     userId: '',
@@ -152,40 +149,7 @@ const DoctorForm: React.FC<DoctorFormProps> = ({
         onClose();
         onDoctorCreated();
       } else {
-        // Enhanced error handling for 400 status and duplicate doctor scenarios
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          try {
-            const errorData = await response.json();
-            console.error('Server error details:', errorData);
-            
-            // Check for specific error messages indicating duplicate doctor
-            if (errorData.message && 
-                (errorData.message.toLowerCase().includes('already exists') || 
-                 errorData.message.toLowerCase().includes('duplicate') ||
-                 errorData.message.toLowerCase().includes('already assigned') ||
-                 errorData.message.toLowerCase().includes('already registered') ||
-                 errorData.message.toLowerCase().includes('another specialty'))) {
-              
-              // More specific error message based on the type of conflict
-              if (errorData.message.toLowerCase().includes('another specialty')) {
-                setSubmitError(`This user is already registered as a doctor in another specialty. A doctor can only be assigned to one specialty at a time. Please choose a different user.`);
-              } else {
-                setSubmitError(`This user is already registered as a doctor. Please choose a different user or check existing doctor assignments.`);
-              }
-            } else if (errorData.message) {
-              setSubmitError(errorData.message);
-            } else if (errorData.errors) {
-              setValidationErrors(errorData.errors);
-            } else {
-              setSubmitError('Server validation failed. Please check your input.');
-            }
-          } catch (jsonError) {
-            setSubmitError(`Request failed with status ${response.status}. Please check your input and try again.`);
-          }
-        } else {
-          setSubmitError(`Request failed with status ${response.status}. Please check if the backend is running.`);
-        }
+        await handleApiError(response, 'Creating doctor');
       }
     } catch (error) {
       console.error('Error creating doctor:', error);

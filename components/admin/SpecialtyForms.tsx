@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { getAuthHeaders, handleApiError } from '@/lib/auth-utils';
 
 interface Specialty {
   id: number;
@@ -18,8 +19,6 @@ interface SpecialtyFormsProps {
   onSpecialtyCreated: () => void;
   onSpecialtyUpdated: () => void;
   apiBaseUrl: string;
-  getAuthHeaders: () => Record<string, string>;
-  handleApiError: (response: Response, context: string) => Promise<void>;
 }
 
 const SpecialtyForms: React.FC<SpecialtyFormsProps> = ({
@@ -30,9 +29,7 @@ const SpecialtyForms: React.FC<SpecialtyFormsProps> = ({
   onEditClose,
   onSpecialtyCreated,
   onSpecialtyUpdated,
-  apiBaseUrl,
-  getAuthHeaders,
-  handleApiError
+  apiBaseUrl
 }) => {
   return (
     <>
@@ -41,8 +38,6 @@ const SpecialtyForms: React.FC<SpecialtyFormsProps> = ({
           onClose={onCreateClose}
           onSpecialtyCreated={onSpecialtyCreated}
           apiBaseUrl={apiBaseUrl}
-          getAuthHeaders={getAuthHeaders}
-          handleApiError={handleApiError}
         />
       )}
       {editFormOpen && (
@@ -51,8 +46,6 @@ const SpecialtyForms: React.FC<SpecialtyFormsProps> = ({
           onClose={onEditClose}
           onSpecialtyUpdated={onSpecialtyUpdated}
           apiBaseUrl={apiBaseUrl}
-          getAuthHeaders={getAuthHeaders}
-          handleApiError={handleApiError}
         />
       )}
     </>
@@ -63,16 +56,12 @@ interface CreateSpecialtyFormProps {
   onClose: () => void;
   onSpecialtyCreated: () => void;
   apiBaseUrl: string;
-  getAuthHeaders: () => Record<string, string>;
-  handleApiError: (response: Response, context: string) => Promise<void>;
 }
 
 const CreateSpecialtyForm: React.FC<CreateSpecialtyFormProps> = ({
   onClose,
   onSpecialtyCreated,
-  apiBaseUrl,
-  getAuthHeaders,
-  handleApiError
+  apiBaseUrl
 }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -91,21 +80,11 @@ const CreateSpecialtyForm: React.FC<CreateSpecialtyFormProps> = ({
     setSubmitError('');
     
     try {
-      const headers = getAuthHeaders();
-      const url = `${apiBaseUrl}/api/admin/specialties`;
-      
-      console.log('Sending request to:', url);
-      console.log('With data:', formData);
-      console.log('With headers:', headers);
-      
-      const response = await fetch(url, {
+      const response = await fetch(`${apiBaseUrl}/api/admin/specialties`, {
         method: 'POST',
-        headers: headers,
+        headers: getAuthHeaders(),
         body: JSON.stringify(formData)
       });
-
-      console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
       if (response.ok) {
         const result = await response.json();
@@ -188,17 +167,13 @@ interface EditSpecialtyFormProps {
   onClose: () => void;
   onSpecialtyUpdated: () => void;
   apiBaseUrl: string;
-  getAuthHeaders: () => Record<string, string>;
-  handleApiError: (response: Response, context: string) => Promise<void>;
 }
 
 const EditSpecialtyForm: React.FC<EditSpecialtyFormProps> = ({
   editingSpecialty,
   onClose,
   onSpecialtyUpdated,
-  apiBaseUrl,
-  getAuthHeaders,
-  handleApiError
+  apiBaseUrl
 }) => {
   const [formData, setFormData] = useState({
     name: editingSpecialty?.name || '',
@@ -231,21 +206,11 @@ const EditSpecialtyForm: React.FC<EditSpecialtyFormProps> = ({
     setSubmitError('');
     
     try {
-      const headers = getAuthHeaders();
-      const url = `${apiBaseUrl}/api/admin/specialties/${editingSpecialty.id}`;
-      
-      console.log('Sending update request to:', url);
-      console.log('With data:', formData);
-      console.log('With headers:', headers);
-      
-      const response = await fetch(url, {
+      const response = await fetch(`${apiBaseUrl}/api/admin/specialties/${editingSpecialty.id}`, {
         method: 'PUT',
-        headers: headers,
+        headers: getAuthHeaders(),
         body: JSON.stringify(formData)
       });
-
-      console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
       if (response.ok) {
         const result = await response.json();
