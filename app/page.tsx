@@ -4,8 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { Heart, Clock, Users, Stethoscope, Calendar, ArrowRight, User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Navbar from "@/components/Navbar";
-import Banner from "@/components/banner";
-import Footer from "@/components/footer";
+import Banner from "@/components/Banner";
+import Footer from "@/components/Footer";
 
 // ⬇️ เพิ่มคีย์กลางไว้ใช้กับ sessionStorage
 const DRAFT_KEY = 'bookingDraft';
