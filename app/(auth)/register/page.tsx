@@ -1,126 +1,112 @@
 'use client';
 
-import Link from 'next/link';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useFormStatus } from 'react-dom';
+import { registerAction } from '@/utils/action';
+import { useSearchParams } from 'next/navigation';
 import { validatePasswords } from '@/utils/validatePass';
-import { AuthService } from '@/lib/auth-service';
-import type { RegisterRequest } from '@/types/auth';
+import { useState } from 'react';
+import Link from 'next/link';
+
+// import components
+import Navbar from '@/components/Navbar';
+import Banner from '@/components/Banner';
+import Footer from '@/components/Footer';
+
+function SubmitButton({ disabledExtra = false }: { disabledExtra?: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending || disabledExtra}
+      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+    >
+      {pending ? 'กำลังสร้าง...' : 'สร้างบัญชีของฉัน'}
+    </button>
+  );
+}
 
 export default function RegisterPage() {
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const params = useSearchParams();
+  const serverError = params.get('error');
+
   const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [hasSubmitted, setHasSubmitted] = useState(false);
 
-  // Live password validation
-  const liveError = validatePasswords(password, confirm);
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError(null);
-    
-    // Final validation check
-    if (liveError) {
-      setError(liveError);
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const formData = new FormData(e.currentTarget);
-      const registerData: RegisterRequest = {
-        email: formData.get('email') as string,
-        password: formData.get('password') as string,
-        firstName: '', // Send empty string since backend handles null
-        lastName: '', // Send empty string since backend handles null
-      };
-
-      console.log('Sending registration data:', registerData);
-      await AuthService.register(registerData);
-      
-      // Registration successful, redirect to login
-      router.push('/login?message=Registration successful! Please log in.');
-    } catch (err) {
-      console.error('Registration error:', err);
-      setError(err instanceof Error ? err.message : 'Registration failed - check if backend is running');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const liveError = hasSubmitted ? validatePasswords(password, confirmPassword) : null;
+  const isPasswordTooShort = password.length < 6;
 
   return (
-    <div className="mx-auto max-w-md rounded-2xl border border-slate-200 bg-white/90 shadow-xl backdrop-blur mt-10">
-      <div className="p-6 pb-2">
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-teal-500" />
-          <div className="font-semibold text-lg">Doctora</div>
+    <div className="min-h-screen bg-gray-50">
+      <Navbar />
+
+      {/* Main Content */}
+      <main className="max-w-6xl mx-auto px-6 py-6">
+        {/* Banner Component */}
+        <Banner />
+        
+        {/* Register Form */}
+        <div className="max-w-md mx-auto mt-8">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">สร้างบัญชีของท่าน</h2>
+          </div>
+          
+          <form action={registerAction} className="space-y-4" onSubmit={() => setHasSubmitted(true)}>
+            
+            {/* Email Field */}
+            <div>
+              <input
+                type="email"
+                name="email"
+                placeholder="email"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                required
+              />
+            </div>
+
+            {/* Password Field */}
+            <div>
+              <input
+                type="password"
+                name="password"
+                placeholder="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`w-full px-4 py-3 border rounded-lg text-gray-700 bg-white focus:outline-none focus:ring-2 transition-colors ${
+                  hasSubmitted && liveError ? 'border-red-400 focus:ring-red-500' : 'border-gray-300 focus:ring-teal-500 focus:border-teal-500'
+                }`}
+                required
+              />
+            </div>
+
+            {/* Error Message */}
+            {((hasSubmitted && liveError) || serverError === 'invalid') && (
+              <div className="text-center">
+                <p className="text-red-500 text-sm mb-4">
+                  {liveError ?? 'มีข้อผิดพลาด? คลิกลบ'}
+                </p>
+              </div>
+            )}
+
+            <div className="text-center">
+              <p className="text-red-500 text-sm mb-4">
+                มีบัญชีอยู่แล้ว? <Link href="/login" className="hover:underline">คลิกเพื่อลงชื่อเข้าใช้</Link>
+              </p>
+            </div>
+
+            {/* Hidden fields */}
+            <input type="hidden" name="first" value="User" />
+            <input type="hidden" name="last" value="Name" />
+
+            {/* Submit Button */}
+            <SubmitButton disabledExtra={isPasswordTooShort || (hasSubmitted && !!liveError)} />
+            
+          </form>
         </div>
-        <h1 className="mt-6 text-2xl font-semibold tracking-tight">Create account</h1>
-        <p className="mt-1 text-slate-500">Get faster and better healthcare</p>
-      </div>
+      </main>
 
-      <form onSubmit={handleSubmit} className="p-6 pt-2 space-y-4">
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Email</label>
-          <input
-            type="email"
-            name="email"
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-            required
-            disabled={isLoading}
-          />
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Password</label>
-          <input
-            type="password"
-            name="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-            required
-            disabled={isLoading}
-          />
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Confirm Password</label>
-          <input
-            type="password"
-            name="confirm"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-            required
-            disabled={isLoading}
-          />
-        </div>
-
-        {(liveError || error) && (
-          <p className="text-sm text-red-600">
-            {liveError || error}
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={isLoading || !!liveError}
-          className="mt-2 w-full rounded-lg bg-teal-600 py-2.5 font-medium text-white hover:bg-teal-700 disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {isLoading ? 'Creating account...' : 'Create account'}
-        </button>
-
-        <p className="text-center text-sm text-slate-600">
-          Already have an account?{' '}
-          <Link href="/login" className="text-teal-700 font-medium hover:underline">
-            Sign in
-          </Link>
-        </p>
-      </form>
+      {/* Footer Component */}
+      <Footer />
     </div>
   );
 }
