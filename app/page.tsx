@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Heart, Clock, Users, Stethoscope, Calendar, ArrowRight, User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/auth-context';
 import Navbar from "@/components/Navbar";
 import Banner from "@/components/Banner";
 import Footer from "@/components/Footer";
@@ -12,6 +13,7 @@ const DRAFT_KEY = 'bookingDraft';
 
 export default function LandingPage() {
   const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuth();
   const [selectedOption, setSelectedOption] = useState('');
   const [isClient, setIsClient] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -29,15 +31,6 @@ export default function LandingPage() {
       setSelectedOption(draft.illness);
     }
   }, [isClient]);
-
-  // ตรวจสอบสถานะการเข้าสู่ระบบ
-  const isLoggedIn = () => {
-    if (typeof window !== 'undefined') {
-      const savedUser = localStorage.getItem('user');
-      return !!savedUser;
-    }
-    return false;
-  };
 
   // ⬇️ เซฟค่า illness ลง draft ทุกครั้งที่ผู้ใช้เปลี่ยนตัวเลือก
   useEffect(() => {
@@ -63,7 +56,7 @@ export default function LandingPage() {
     }
 
     // ถ้ายังไม่ล็อกอินให้เด้ง modal
-    if (!isLoggedIn()) {
+    if (!isAuthenticated) {
       setShowLoginModal(true);
       return;
     }
@@ -235,7 +228,9 @@ export default function LandingPage() {
                 className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm cursor-pointer hover:bg-amber-100 transition-colors"
               >
                 <User className="w-4 h-4" />
-                <span>จำเป็นต้องเข้าสู่ระบบเพื่อทำการนัดหมาย</span>
+                <span>
+                  {isAuthenticated ? 'คุณได้เข้าสู่ระบบแล้ว' : 'จำเป็นต้องเข้าสู่ระบบเพื่อทำการนัดหมาย'}
+                </span>
               </div>
             </div>
 

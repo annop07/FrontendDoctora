@@ -2,15 +2,109 @@
 
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, Filter, Calendar as CalendarIcon, Clock, User, Stethoscope, Building, CheckCircle, Sun, Settings, RotateCcw, ArrowLeft, ArrowRight, Sunset } from "lucide-react";
 
-/** ==================== Calendar (client-only, no SSR time drift) ==================== */
+// Types for backend integration
+interface Doctor {
+  id: number;
+  doctorName: string;
+  email: string;
+  specialty: { id: number; name: string };
+  licenseNumber: string;
+  experienceYears: number;
+  consultationFee: number;
+  roomNumber: string;
+  isActive: boolean;
+  bio?: string;
+  education?: string;
+  languages?: string[];
+  availableTimes?: string[];
+  nextAvailableTime?: string;
+}
+
+interface Specialty {
+  id: number;
+  name: string;
+  description: string;
+  doctorCount?: number;
+}
+
+interface DoctorSearchParams {
+  page?: number;
+  size?: number;
+  name?: string;
+  specialty?: number;
+  minFee?: number;
+  maxFee?: number;
+}
+
+// API Service Class
+class ApiService {
+  private baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082';
+
+  private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const url = `${this.baseUrl}${endpoint}`;
+    
+    const config: RequestInit = {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    };
+
+    const response = await fetch(url, config);
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch (e) {
+        // Use default error message
+      }
+      throw new Error(errorMessage);
+    }
+
+    return response.json();
+  }
+
+  async getDoctors(params: DoctorSearchParams = {}): Promise<{
+    doctors: Doctor[];
+    currentPage: number;
+    totalItems: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrevious: boolean;
+  }> {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        searchParams.append(key, value.toString());
+      }
+    });
+    
+    return this.makeRequest(`/api/doctors?${searchParams.toString()}`);
+  }
+
+  async getSpecialtiesWithCount(): Promise<{ specialties: Specialty[] }> {
+    return this.makeRequest('/api/specialties/with-count');
+  }
+
+  async searchDoctorsByName(name: string): Promise<{ doctors: Doctor[] }> {
+    return this.makeRequest(`/api/doctors/search?name=${encodeURIComponent(name)}`);
+  }
+}
+
+const apiService = new ApiService();
+
+/** ==================== Calendar Component ==================== */
 function Calendar({ onChange }: { onChange?: (d: Date | undefined) => void }) {
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [minDateString, setMinDateString] = useState<string>("");
-//test
+
   useEffect(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -38,249 +132,123 @@ function Calendar({ onChange }: { onChange?: (d: Date | undefined) => void }) {
   );
 }
 
-/** ==================== Types ==================== */
-interface Doctor {
-  id: number;
-  name: string;
-  department: string;
-  gender: "ชาย" | "หญิง";
-  education: string;     // เพิ่ม
-  languages: string[];   // เพิ่ม
-  availableTimes: string[];
-  nextAvailableTime?: string;
-  availableDates: string[];
-}
-
-/** ==================== Static catalogs ==================== */
-const departments = [
-  "กระดูกและข้อ", "กุมารเวชกรรม", "นรีเวชกรรม", "ผิวหนัง",
-  "ศัลยกรรมตกแต่ง", "ศัลยกรรมทั่วไป", "สุขภาพเพศชาย", "สมองและไขสันหลัง",
-  "หลอดเลือด", "หัวใจและทรวงอก", "ศัลยกรรมเด็ก", "มะเร็งเต้านม", "สุขภาพจิต",
-  "บุคคลข้ามเพศ", "หู คอ จมูก", "เวชศาสตร์นิวเคลียร์", "โรคหัวใจ"
-];
-
-const timeSlots = {
-  morning: ["9:00-10:00", "10:00-11:00", "11:00-12:00"],
-  afternoon: ["12:00-13:00", "13:00-14:00", "14:00-15:00"]
-};
-
-/** ==================== Helpers: deterministic date generation ==================== */
-// ใช้ pattern คงที่ (ไม่สุ่ม) เพื่อตัดปัญหา hydration
-// 1) ฟังก์ชันวันที่: เริ่มที่ "พรุ่งนี้"
-function buildUpcomingDates(days = 7) {
-  const out: string[] = [];
-  const base = new Date();
-  base.setDate(base.getDate() + 1); // เริ่มจากพรุ่งนี้
-  for (let i = 0; i < days; i++) {
-    const d = new Date(base);
-    d.setDate(base.getDate() + i);
-    out.push(d.toISOString().split("T")[0]);
-  }
-  return out;
-}
-
-function pickDatesDeterministic(all: string[], pickEvery = 2) {
-  return all.filter((_, idx) => idx % pickEvery === 0);
-}
-
-/** ==================== Page ==================== */
+/** ==================== Main Component ==================== */
 export default function DoctorSearchPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  /** -------- Search & filters (UI state) -------- */
+  // State for real data
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [specialties, setSpecialties] = useState<Specialty[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>('');
+
+  // Search & filters (UI state)
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-
   const [selectedGender, setSelectedGender] = useState<"ชาย" | "หญิง" | "">("");
   const [selectedTime, setSelectedTime] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedDepartment, setSelectedDepartment] = useState("");
   const [doctorAvailable, setDoctorAvailable] = useState(false);
 
-  /** -------- Applied filters (actual) -------- */
-  const [appliedFilters, setAppliedFilters] = useState({
-    gender: "",
-    time: "",
-    date: "",         // จะถูกตั้งหลัง mount
-    department: "",
-    available: false
-  });
-
-  /** -------- Pagination -------- */
+  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const doctorsPerPage = 12;
 
-  /** -------- Build doctors list (deterministic, no Math.random) -------- */
-  // สร้างแพทย์ "โครง" แบบคงที่ ไม่ใช้วันที่/เวลา ณ โมดูลท็อปเลเวล
-  const baseDoctors: Doctor[] = useMemo(() => {
-    const basics: Doctor[] = [
-      {
-        id: 1,
-        name: "นพ. กฤต อินทรจินดา",
-        department: "กระดูกและข้อ",
-        gender: "ชาย",
-        education: "MD, Orthopedics — KKU",
-        languages: ["ไทย", "อังกฤษ"],
-        availableTimes: ["9:00-10:00", "10:00-11:00", "13:00-14:00"],
-        nextAvailableTime: "9:00-10:00",
-        availableDates: []
-      },
-      {
-        id: 2,
-        name: "นพ.รีโม",
-        department: "หัวใจและทรวงอก",
-        gender: "ชาย",
-        education: "MD, Cardiothoracic — CMU",
-        languages: ["ไทย"],
-        availableTimes: ["10:00-11:00", "14:00-15:00"],
-        nextAvailableTime: "10:00-11:00",
-        availableDates: []
-      },
-      {
-        id: 3,
-        name: "นพ.อิง",
-        department: "นรีเวชกรรม",
-        gender: "หญิง",
-        education: "MD, OB-GYN — PSU",
-        languages: ["ไทย", "อังกฤษ"],
-        availableTimes: ["11:00-12:00", "15:00-16:00"],
-        nextAvailableTime: "11:00-12:00",
-        availableDates: []
-      },
-      {
-        id: 4,
-        name: "นพ.ก้อง",
-        department: "กุมารเวชกรรม",
-        gender: "ชาย",
-        education: "MD, Pediatrics — KKU",
-        languages: ["ไทย"],
-        availableTimes: ["9:00-10:00", "12:00-13:00"],
-        nextAvailableTime: "12:00-13:00",
-        availableDates: []
-      },
-      {
-        id: 5,
-        name: "นพ.ฟิล์ม",
-        department: "กุมารเวชกรรม",
-        gender: "ชาย",
-        education: "MD, Pediatrics — KU",
-        languages: ["ไทย", "อังกฤษ"],
-        availableTimes: ["9:00-10:00", "12:00-13:00"],
-        nextAvailableTime: "12:00-13:00",
-        availableDates: []
+  // Time slots for filtering (kept for UI, but not used in backend filtering yet)
+  const timeSlots = {
+    morning: ["9:00-10:00", "10:00-11:00", "11:00-12:00"],
+    afternoon: ["12:00-13:00", "13:00-14:00", "14:00-15:00"]
+  };
+
+  // Load specialties on mount
+  useEffect(() => {
+    const loadSpecialties = async () => {
+      try {
+        const response = await apiService.getSpecialtiesWithCount();
+        setSpecialties(response.specialties);
+      } catch (error) {
+        console.error('Failed to load specialties:', error);
+        setError('Failed to load specialties');
       }
-    ];
-
-    // เติมรายการแบบกำหนดเพศคงที่ (ไม่ใช้ Math.random)
-    const more: Doctor[] = Array.from({ length: 20 }, (_, i) => ({
-      id: i + 6,
-      name: `นพ. ทดสอบ ${i + 1}`,
-      department: "ศัลยกรรมทั่วไป",
-      gender: i % 2 === 0 ? ("ชาย" as const) : ("หญิง" as const),
-      education: i % 2 === 0 ? "MD, General Surgery — KKU" : "MD, General Surgery — CMU",
-      languages: i % 3 === 0 ? ["ไทย", "อังกฤษ"] : ["ไทย"],
-      availableTimes: ["9:00-10:00", "10:00-11:00"],
-      nextAvailableTime: "9:00-10:00",
-      availableDates: []
-    }));
-
-    return [...basics, ...more];
+    };
+    
+    loadSpecialties();
   }, []);
 
-  /** -------- Doctors (state with dates filled after mount) -------- */
-  const [doctors, setDoctors] = useState<Doctor[]>(baseDoctors);
-
-  useEffect(() => {
-    // เติม availableDates แบบ deterministic หลัง mount (กัน SSR mismatch)
-    const all = buildUpcomingDates(7);
-    const patched = baseDoctors.map((d, idx) => ({
-      ...d,
-      availableDates: pickDatesDeterministic(all, (idx % 3) + 2) // สลับ pattern 2/3/4 วัน
-    }));
-    setDoctors(patched);
-
-    // ตั้งค่า default date (พรุ่งนี้) สำหรับฟิลเตอร์
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    setSelectedDate(tomorrow);
-    setAppliedFilters((prev) => ({
-      ...prev,
-      date: tomorrow.toISOString().split("T")[0]
-    }));
-  }, [baseDoctors]);
-
-  /** -------- read department from URL -------- */
+  // Read department from URL
   useEffect(() => {
     const department = searchParams.get("depart");
     if (department) {
       setSelectedDepartment(department);
-      setAppliedFilters((prev) => ({ ...prev, department }));
     }
   }, [searchParams]);
 
-  /** -------- Filtering -------- */
-  const filteredDoctors = useMemo(() => {
-    return doctors.filter((doctor) => {
-      const matchesSearch =
-        searchTerm === "" ||
-        doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        doctor.department.toLowerCase().includes(searchTerm.toLowerCase());
+  // Load doctors when filters change
+  useEffect(() => {
+    const loadDoctors = async () => {
+      setLoading(true);
+      setError('');
+      
+      try {
+        // Build search params for backend
+        const params: DoctorSearchParams = {
+          page: currentPage - 1, // Backend uses 0-based pagination
+          size: doctorsPerPage,
+        };
 
-      const matchesGender = appliedFilters.gender === "" || doctor.gender === appliedFilters.gender;
-      const matchesDepartment =
-        appliedFilters.department === "" || doctor.department === appliedFilters.department;
-      const matchesTime =
-        appliedFilters.time === "" || doctor.availableTimes.includes(appliedFilters.time);
-      const matchesDate =
-        appliedFilters.date === "" || doctor.availableDates.includes(appliedFilters.date);
-      const matchesAvailable = !appliedFilters.available || doctor.nextAvailableTime !== undefined;
+        // Add search term
+        if (searchTerm.trim()) {
+          params.name = searchTerm.trim();
+        }
 
-      return (
-        matchesSearch &&
-        matchesGender &&
-        matchesDepartment &&
-        matchesTime &&
-        matchesDate &&
-        matchesAvailable
-      );
-    });
-  }, [doctors, searchTerm, appliedFilters]);
+        // Add specialty filter
+        if (selectedDepartment) {
+          const specialty = specialties.find(s => s.name === selectedDepartment);
+          if (specialty) {
+            params.specialty = specialty.id;
+          }
+        }
 
-  /** -------- Pagination -------- */
-  const totalPages = Math.max(1, Math.ceil(filteredDoctors.length / doctorsPerPage));
-  const currentDoctors = filteredDoctors.slice(
-    (currentPage - 1) * doctorsPerPage,
-    currentPage * doctorsPerPage
-  );
+        // Note: Gender, time, date, and availability filters are not yet implemented in backend
+        // These will need to be added to your backend API later
 
-  /** -------- UI helpers -------- */
-  const handleTimeSelect = (time: string) => setSelectedTime(time === selectedTime ? "" : time);
-  
+        const response = await apiService.getDoctors(params);
+        
+        setDoctors(response.doctors);
+        setTotalPages(response.totalPages);
+        setTotalItems(response.totalItems);
+        
+      } catch (error) {
+        console.error('Failed to load doctors:', error);
+        setError(error instanceof Error ? error.message : 'Failed to load doctors');
+        setDoctors([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Only load when specialties are available (to ensure department filtering works)
+    if (specialties.length > 0 || !selectedDepartment) {
+      loadDoctors();
+    }
+  }, [currentPage, searchTerm, selectedDepartment, specialties]);
+
+  // Handle search
   const handleSearch = () => {
-    // เมื่อกดค้นหา ให้ใช้ตัวกรองที่มีอยู่ทันทีและรีเซ็ตไปหน้าแรก
-    setAppliedFilters({
-      gender: selectedGender,
-      time: selectedTime,
-      date: selectedDate ? selectedDate.toISOString().split("T")[0] : "",
-      department: selectedDepartment,
-      available: doctorAvailable
-    });
-    setCurrentPage(1);
+    setCurrentPage(1); // Reset to first page when searching
   };
 
+  // Apply filters (for now, just trigger search)
   const applyFilters = () => {
-    setAppliedFilters({
-      gender: selectedGender,
-      time: selectedTime,
-      date: selectedDate ? selectedDate.toISOString().split("T")[0] : "",
-      department: selectedDepartment,
-      available: doctorAvailable
-    });
     setCurrentPage(1);
-    setShowFilters(false); // ปิดช่องตัวกรองอัตโนมัติ
+    setShowFilters(false);
   };
 
+  // Reset filters
   const resetFilters = () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -288,33 +256,89 @@ export default function DoctorSearchPage() {
     setSelectedTime("");
     setSelectedDate(tomorrow);
     setDoctorAvailable(false);
-    setAppliedFilters({
-      gender: "",
-      time: "",
-      date: tomorrow.toISOString().split("T")[0],
-      department: selectedDepartment,
-      available: false
-    });
     setCurrentPage(1);
+    setSearchTerm("");
   };
 
-  /** -------- Routing with params -> /DocInfoAndBooking/[id] -------- */
-// ปรับฟังก์ชัน
-const goDoc = (d: Doctor, mode: "detail" | "booking") => {
-  const q = new URLSearchParams({
-    name: d.name,
-    department: d.department,
-    gender: d.gender,
-    education: d.education,
-    languages: d.languages.join(","),
-  }).toString();
+  // Navigation to doctor detail/booking
+  const goDoc = (doctor: Doctor, mode: "detail" | "booking") => {
+    const q = new URLSearchParams({
+      name: doctor.doctorName,
+      department: doctor.specialty.name,
+      education: doctor.education || '',
+      languages: doctor.languages?.join(",") || '',
+    }).toString();
 
-  const hash = mode === "booking" ? "#booking" : "";
-  router.push(`/DocInfoAndBooking/${d.id}?${q}${hash}`);
-};
+    const hash = mode === "booking" ? "#booking" : "";
+    router.push(`/DocInfoAndBooking/${doctor.id}?${q}${hash}`);
+  };
 
+  // Handle time slot selection
+  const handleTimeSelect = (time: string) => {
+    setSelectedTime(time === selectedTime ? "" : time);
+  };
 
+  // Loading state
+  if (loading && doctors.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
+        <Navbar />
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center mb-4">
+              <div className="p-3 bg-emerald-100 rounded-full">
+                <Stethoscope className="h-8 w-8 text-emerald-600" />
+              </div>
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+              เลือกแพทย์ผู้เชี่ยวชาญ
+            </h1>
+          </div>
+          <div className="flex justify-center items-center min-h-96">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
+              <p className="text-emerald-700 font-medium">กำลังโหลดข้อมูลแพทย์...</p>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
+  // Error state
+  if (error && doctors.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
+        <Navbar />
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center mb-4">
+              <div className="p-3 bg-emerald-100 rounded-full">
+                <Stethoscope className="h-8 w-8 text-emerald-600" />
+              </div>
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+              เลือกแพทย์ผู้เชี่ยวชาญ
+            </h1>
+          </div>
+          <div className="text-center">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
+              <h3 className="text-red-800 font-medium mb-2">เกิดข้อผิดพลาด</h3>
+              <p className="text-red-700 text-sm mb-4">{error}</p>
+              <button 
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                ลองใหม่
+              </button>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
@@ -376,19 +400,23 @@ const goDoc = (d: Doctor, mode: "detail" | "booking") => {
               <div className="flex items-center gap-2 mb-4">
                 <Settings className="h-5 w-5 text-emerald-600" />
                 <h3 className="text-lg font-semibold text-gray-900">ตัวกรองการค้นหา</h3>
+                <span className="text-sm text-yellow-600 bg-yellow-50 px-2 py-1 rounded">
+                  (บางตัวกรองยังไม่เชื่อมต่อกับ Backend)
+                </span>
               </div>
               
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Gender */}
+                {/* Gender - Not connected to backend yet */}
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
                     <User className="h-4 w-4 text-emerald-600" />
-                    เพศ
+                    เพศ <span className="text-xs text-gray-500">(ยังไม่ใช้งาน)</span>
                   </label>
                   <select
                     value={selectedGender}
                     onChange={(e) => setSelectedGender(e.target.value as "ชาย" | "หญิง" | "")}
-                    className="w-full rounded-xl border-2 border-emerald-200 px-4 py-3 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200 bg-white/80"
+                    className="w-full rounded-xl border-2 border-emerald-200 px-4 py-3 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200 bg-white/80 opacity-60"
+                    disabled
                   >
                     <option value="">เลือกเพศทั้งหมด</option>
                     <option value="ชาย">ชาย</option>
@@ -396,7 +424,7 @@ const goDoc = (d: Doctor, mode: "detail" | "booking") => {
                   </select>
                 </div>
 
-                {/* Department */}
+                {/* Department - Connected to backend */}
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
                     <Building className="h-4 w-4 text-emerald-600" />
@@ -408,15 +436,15 @@ const goDoc = (d: Doctor, mode: "detail" | "booking") => {
                     className="w-full rounded-xl border-2 border-emerald-200 px-4 py-3 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200 bg-white/80"
                   >
                     <option value="">เลือกแผนกทั้งหมด</option>
-                    {departments.map((dept) => (
-                      <option key={dept} value={dept}>
-                        {dept}
+                    {specialties.map((specialty) => (
+                      <option key={specialty.id} value={specialty.name}>
+                        {specialty.name} {specialty.doctorCount !== undefined && `(${specialty.doctorCount} หมอ)`}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                {/* Available Status */}
+                {/* Available Status - Not connected to backend yet */}
                 <div className="space-y-2">
                   <label className="flex items-center space-x-3 cursor-pointer">
                     <input
@@ -424,20 +452,22 @@ const goDoc = (d: Doctor, mode: "detail" | "booking") => {
                       checked={doctorAvailable}
                       onChange={(e) => setDoctorAvailable(e.target.checked)}
                       className="w-5 h-5 text-emerald-600 border-emerald-300 rounded focus:ring-emerald-500 focus:ring-2"
+                      disabled
                     />
-                    <div className="flex items-center gap-2">   
+                    <div className="flex items-center gap-2 opacity-60">   
                       <span className="text-sm font-medium text-gray-700">แพทย์พร้อมนัด</span>
- <CheckCircle className="h-4 w-4 text-emerald-600" />
+                      <CheckCircle className="h-4 w-4 text-emerald-600" />
+                      <span className="text-xs text-gray-500">(ยังไม่ใช้งาน)</span>
                     </div>
                   </label>
                 </div>
               </div>
 
-              {/* Time Selection */}
-              <div className="space-y-4">
+              {/* Time Selection - Not connected to backend yet */}
+              <div className="space-y-4 opacity-60">
                 <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
                   <Clock className="h-4 w-4 text-emerald-600" />
-                  เวลา
+                  เวลา <span className="text-xs text-gray-500">(ยังไม่ใช้งาน)</span>
                 </label>
                 <div className="space-y-4">
                   <div>
@@ -450,7 +480,8 @@ const goDoc = (d: Doctor, mode: "detail" | "booking") => {
                         <button
                           key={time}
                           onClick={() => handleTimeSelect(time)}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                          disabled
+                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-not-allowed ${
                             selectedTime === time
                               ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200'
                               : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
@@ -471,7 +502,8 @@ const goDoc = (d: Doctor, mode: "detail" | "booking") => {
                         <button
                           key={time}
                           onClick={() => handleTimeSelect(time)}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                          disabled
+                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-not-allowed ${
                             selectedTime === time
                               ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200'
                               : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
@@ -485,11 +517,11 @@ const goDoc = (d: Doctor, mode: "detail" | "booking") => {
                 </div>
               </div>
 
-              {/* Date */}
-              <div className="space-y-2">
+              {/* Date - Not connected to backend yet */}
+              <div className="space-y-2 opacity-60">
                 <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
                   <CalendarIcon className="h-4 w-4 text-emerald-600" />
-                  วันที่
+                  วันที่ <span className="text-xs text-gray-500">(ยังไม่ใช้งาน)</span>
                 </label>
                 <div className="bg-white/50 p-4 rounded-lg border border-emerald-200">
                   <Calendar onChange={setSelectedDate} />
@@ -518,62 +550,48 @@ const goDoc = (d: Doctor, mode: "detail" | "booking") => {
         </div>
 
         {/* Department badge */}
-        <div className="mb-8">
-          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-5 py-2.5 rounded-full text-sm font-semibold shadow-md">
-            <span>•</span>
-            <span>{appliedFilters.department || "แผนกกระดูกและข้อ"}</span>
-          </div>
-        </div>
-
-        {/* Applied filters */}
-        {(appliedFilters.gender || appliedFilters.time || appliedFilters.available || appliedFilters.date) && (
-          <div className="mb-8 p-6 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl border border-emerald-200 shadow-sm">
-            <div className="flex items-center gap-2 mb-4">
-              <Filter className="h-5 w-5 text-emerald-600" />
-              <h3 className="text-lg font-semibold text-emerald-800">ตัวกรองที่ใช้</h3>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              {appliedFilters.gender && (
-                <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-white/80 text-emerald-700 rounded-xl text-sm font-medium border border-emerald-200 shadow-sm">
-                  <User className="h-4 w-4" />
-                  เพศ: {appliedFilters.gender}
-                </span>
-              )}
-              {appliedFilters.time && (
-                <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-white/80 text-emerald-700 rounded-xl text-sm font-medium border border-emerald-200 shadow-sm">
-                  <Clock className="h-4 w-4" />
-                  เวลา: {appliedFilters.time}
-                </span>
-              )}
-              {appliedFilters.date && (
-                <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-white/80 text-emerald-700 rounded-xl text-sm font-medium border border-emerald-200 shadow-sm">
-                  <CalendarIcon className="h-4 w-4" />
-                  วันที่: {new Date(appliedFilters.date).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok" })}
-                </span>
-              )}
-              {appliedFilters.available && (
-                <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-white/80 text-emerald-700 rounded-xl text-sm font-medium border border-emerald-200 shadow-sm">
-                  <CheckCircle className="h-4 w-4" />
-                  แพทย์พร้อมนัด
-                </span>
-              )}
+        {selectedDepartment && (
+          <div className="mb-8">
+            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-5 py-2.5 rounded-full text-sm font-semibold shadow-md">
+              <span>•</span>
+              <span>แผนก{selectedDepartment}</span>
             </div>
           </div>
         )}
+
+        {/* Search results info */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between">
+            <p className="text-gray-600">
+              {searchTerm && (
+                <>ผลการค้นหา "<span className="font-semibold">{searchTerm}</span>" - </>
+              )}
+              พบ <span className="font-semibold text-emerald-600">{totalItems}</span> แพทย์
+            </p>
+            {loading && (
+              <div className="flex items-center gap-2 text-emerald-600">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-200 border-t-emerald-600"></div>
+                <span className="text-sm">กำลังค้นหา...</span>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Doctors grid */}
         <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-emerald-100 p-6 mb-8">
           <div className="max-h-[800px] overflow-y-auto">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {currentDoctors.map((doctor) => (
+              {doctors.map((doctor) => (
                 <div 
                   key={doctor.id} 
-                  className="group bg-white border border-emerald-200 rounded-2xl shadow-sm p-6"
+                  className="group bg-white border border-emerald-200 rounded-2xl shadow-sm p-6 hover:shadow-lg transition-all duration-200"
                 >
                   <div className="flex justify-center mb-6">
                     <div className="relative">
                       <div className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center shadow-lg">
-                        <User className="w-10 h-10 text-white" />
+                        <span className="text-white font-bold text-lg">
+                          {doctor.doctorName.charAt(0)}
+                        </span>
                       </div>
                       <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white flex items-center justify-center">
                         <Stethoscope className="w-3 h-3 text-white" />
@@ -583,11 +601,16 @@ const goDoc = (d: Doctor, mode: "detail" | "booking") => {
 
                   <div className="text-center mb-6">
                     <h3 className="font-bold text-gray-900 mb-2 text-lg group-hover:text-emerald-800 transition-colors">
-                      {doctor.name}
+                      {doctor.doctorName}
                     </h3>
                     <div className="flex items-center justify-center gap-1.5 mb-2">
                       <Building className="h-4 w-4 text-emerald-600" />
-                      <p className="text-sm text-gray-600 font-medium">{doctor.department}</p>
+                      <p className="text-sm text-gray-600 font-medium">{doctor.specialty.name}</p>
+                    </div>
+                    <div className="space-y-1 text-xs text-gray-500">
+                      <p>ประสบการณ์: {doctor.experienceYears} ปี</p>
+                      <p className="text-emerald-600 font-medium">ค่าตรวจ: ฿{doctor.consultationFee}</p>
+                      {doctor.roomNumber && <p>ห้อง: {doctor.roomNumber}</p>}
                     </div>
                   </div>
 
@@ -610,7 +633,8 @@ const goDoc = (d: Doctor, mode: "detail" | "booking") => {
                   </div>
                 </div>
               ))}
-              {currentDoctors.length === 0 && (
+              
+              {doctors.length === 0 && !loading && (
                 <div className="col-span-full text-center py-16">
                   <div className="flex flex-col items-center gap-4">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
@@ -631,7 +655,7 @@ const goDoc = (d: Doctor, mode: "detail" | "booking") => {
         <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-emerald-100 p-6 mb-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-sm text-gray-600 font-medium">
-              แสดง {((currentPage - 1) * doctorsPerPage) + 1}-{Math.min(currentPage * doctorsPerPage, filteredDoctors.length)} จาก {filteredDoctors.length} แพทย์
+              แสดง {((currentPage - 1) * doctorsPerPage) + 1}-{Math.min(currentPage * doctorsPerPage, totalItems)} จาก {totalItems} แพทย์
               <span className="text-emerald-600 ml-1">(หน้า {currentPage} จาก {totalPages})</span>
             </div>
             
@@ -683,6 +707,16 @@ const goDoc = (d: Doctor, mode: "detail" | "booking") => {
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Backend Integration Status Info */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
+          <h4 className="text-blue-800 font-medium mb-2">🔗 Backend Integration Status</h4>
+          <div className="text-sm text-blue-700 space-y-1">
+            <p>✅ <strong>Connected:</strong> Doctor data, specialty data, search by name, department filtering</p>
+            <p>⏳ <strong>Not yet implemented:</strong> Gender, time slots, date filtering, availability status</p>
+            <p>📝 <strong>Note:</strong> Add these filters to your Spring Boot backend for full functionality</p>
           </div>
         </div>
       </div>

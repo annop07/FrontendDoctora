@@ -1,7 +1,7 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, Stethoscope, Building, Plus, Search } from 'lucide-react';
+import { Stethoscope, Building, Plus, Search, X } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import { useAdminData } from '@/hooks/useAdminData';
 import DoctorForm from '@/components/admin/DoctorForm';
@@ -16,6 +16,12 @@ interface Specialty {
   doctorCount: number;
 }
 
+interface Notification {
+  id: string;
+  type: 'success' | 'error' | 'info';
+  message: string;
+}
+
 const AdminDashboard = () => {
   const { logout } = useAuth();
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082';
@@ -27,7 +33,6 @@ const AdminDashboard = () => {
     loading,
     error,
     backendStatus,
-    loadData,
     loadDoctors,
     loadSpecialties,
     checkBackendConnection,
@@ -45,10 +50,80 @@ const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSpecialty, setFilterSpecialty] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  // Enhanced notification system
+  const addNotification = (type: 'success' | 'error' | 'info', message: string) => {
+    const id = Date.now().toString();
+    setNotifications(prev => [...prev, { id, type, message }]);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 5000);
+  };
+
+  const removeNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
 
   useEffect(() => {
     checkBackendConnection();
-  }, []);
+  }, [checkBackendConnection]);
+
+  // Handler functions
+  const handleEditSpecialty = (specialty: Specialty) => {
+    setEditingSpecialty(specialty);
+    setShowEditSpecialty(true);
+  };
+
+  const handleCloseEditSpecialty = () => {
+    setShowEditSpecialty(false);
+    setEditingSpecialty(null);
+  };
+
+  const handleDoctorCreated = () => {
+    addNotification('success', 'Doctor created successfully!');
+    setShowCreateDoctor(false);
+    loadDoctors();
+    loadSpecialties(); // Refresh to update doctor counts
+  };
+
+  const handleSpecialtyCreated = () => {
+    addNotification('success', 'Specialty created successfully!');
+    setShowCreateSpecialty(false);
+    loadSpecialties();
+  };
+
+  const handleSpecialtyUpdated = () => {
+    addNotification('success', 'Specialty updated successfully!');
+    handleCloseEditSpecialty();
+    loadSpecialties();
+  };
+
+  // Enhanced toggle with notification
+  const handleToggleDoctorStatus = async (doctorId: number, currentStatus: boolean) => {
+    try {
+      await toggleDoctorStatus(doctorId, currentStatus);
+      addNotification('success', `Doctor status updated to ${!currentStatus ? 'Active' : 'Inactive'}`);
+      loadSpecialties(); // Refresh specialty counts
+    } catch (error) {
+      addNotification('error', `Failed to update doctor status: ${error}`);
+    }
+  };
+
+  // Enhanced delete with notification
+  const handleDeleteSpecialty = async (specialtyId: number) => {
+    if (!confirm('Are you sure you want to delete this specialty?')) return;
+    
+    try {
+      await deleteSpecialty(specialtyId);
+      addNotification('success', 'Specialty deleted successfully!');
+      loadSpecialties();
+    } catch (error) {
+      addNotification('error', `Failed to delete specialty: ${error}`);
+    }
+  };
 
   // Filter functions
   const filteredDoctors = doctors.filter(doctor => {
@@ -68,31 +143,40 @@ const AdminDashboard = () => {
     specialty.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleEditSpecialty = (specialty: Specialty) => {
-    setEditingSpecialty(specialty);
-    setShowEditSpecialty(true);
-  };
-
-  const handleCloseEditSpecialty = () => {
-    setShowEditSpecialty(false);
-    setEditingSpecialty(null);
-  };
-
-  const handleDoctorCreated = async () => {
-    await loadDoctors();
-    await loadSpecialties(); // Refresh to update counts
-  };
-
-  const handleSpecialtyCreated = async () => {
-    await loadSpecialties();
-  };
-
-  const handleSpecialtyUpdated = async () => {
-    await loadSpecialties();
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Notification System */}
+      {notifications.length > 0 && (
+        <div className="fixed top-4 right-4 z-50 space-y-2">
+          {notifications.map((notification) => (
+            <div
+              key={notification.id}
+              className={`px-6 py-4 rounded-lg shadow-lg max-w-sm cursor-pointer transform transition-all duration-300 hover:scale-105 ${
+                notification.type === 'success' 
+                  ? 'bg-green-500 text-white' 
+                  : notification.type === 'error'
+                  ? 'bg-red-500 text-white'
+                  : 'bg-blue-500 text-white'
+              }`}
+              onClick={() => removeNotification(notification.id)}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">{notification.message}</span>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeNotification(notification.id);
+                  }}
+                  className="ml-3 text-white hover:text-gray-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -132,36 +216,11 @@ const AdminDashboard = () => {
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <h3 className="text-red-800 font-medium">Backend Connection Failed</h3>
             <p className="text-red-700 text-sm mt-1">{error}</p>
-            <div className="mt-3 text-sm text-red-700">
-              <p className="font-medium">To fix this issue:</p>
-              <ol className="list-decimal list-inside mt-1 space-y-1">
-                <li>Start your Spring Boot backend: <code className="bg-red-100 px-1 rounded">mvn spring-boot:run</code></li>
-                <li>Verify it's running on port 8082: <code className="bg-red-100 px-1 rounded">curl {apiBaseUrl}/api/specialties</code></li>
-                <li>Check CORS configuration in your backend</li>
-                <li>Ensure your database is running</li>
-              </ol>
-            </div>
             <button 
               onClick={checkBackendConnection}
               className="mt-3 text-sm bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
             >
               Retry Connection
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Error Display */}
-      {error && backendStatus !== 'disconnected' && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <h3 className="text-red-800 font-medium">System Error</h3>
-            <p className="text-red-700 text-sm mt-1">{error}</p>
-            <button 
-              onClick={loadData}
-              className="mt-2 text-sm bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
-            >
-              Retry
             </button>
           </div>
         </div>
@@ -262,7 +321,7 @@ const AdminDashboard = () => {
             <DoctorsTable
               doctors={filteredDoctors}
               loading={loading}
-              onToggleStatus={toggleDoctorStatus}
+              onToggleStatus={handleToggleDoctorStatus}
             />
           )}
 
@@ -270,7 +329,7 @@ const AdminDashboard = () => {
             <SpecialtiesTable
               specialties={filteredSpecialties}
               onEdit={handleEditSpecialty}
-              onDelete={deleteSpecialty}
+              onDelete={handleDeleteSpecialty}
             />
           )}
         </div>
@@ -304,7 +363,5 @@ const AdminDashboard = () => {
     </div>
   );
 };
-
-
 
 export default AdminDashboard;

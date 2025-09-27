@@ -1,8 +1,9 @@
 export interface RegisterRequest {
   email: string;
   password: string;
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
+  role?: 'PATIENT' | 'DOCTOR' | 'ADMIN';
 }
 
 export interface LoginRequest {
@@ -20,10 +21,6 @@ export interface LoginResponse {
   role: 'PATIENT' | 'DOCTOR' | 'ADMIN';
 }
 
-export interface MessageResponse {
-  message: string;
-}
-
 export interface User {
   id: number;
   email: string;
@@ -33,4 +30,8 @@ export interface User {
   role: 'PATIENT' | 'DOCTOR' | 'ADMIN';
   phone?: string;
   createdAt: string;
+}
+
+export interface MessageResponse {
+  message: string;
 }

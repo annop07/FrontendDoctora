@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { AuthService } from "@/lib/auth-service";
 import Navbar from "@/components/Navbar";
 import Banner from "@/components/Banner";
 import Footer from "@/components/Footer";
@@ -20,27 +21,40 @@ export default function LoginPage() {
     setError("");
 
     try {
-      // Mock login - ในการใช้งานจริงจะเรียก API
-      if (email && password) {
-        // จำลองการเข้าสู่ระบบ
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // บันทึกข้อมูลผู้ใช้ลง localStorage
-        const userData = { email };
-        localStorage.setItem('user', JSON.stringify(userData));
-        
-        // ไปหน้าแรก
-        router.push('/');
-        
-        // รีเฟรชหน้าเพื่ออัพเดท Navbar
-        setTimeout(() => {
-          window.location.reload();
-        }, 100);
-      } else {
-        setError("กรุณากรอกอีเมลและรหัสผ่าน");
+      const response = await AuthService.login({ email, password });
+      
+      // Store token and user data
+      AuthService.setToken(response.token);
+      
+      // Store user data for navbar
+      const userData = {
+        id: response.id,
+        email: response.email,
+        firstName: response.firstName,
+        lastName: response.lastName,
+        role: response.role,
+      };
+      localStorage.setItem('user', JSON.stringify(userData));
+      
+      // Redirect based on role
+      switch (response.role) {
+        case 'ADMIN':
+          router.push('/admin');
+          break;
+        case 'DOCTOR':
+          router.push('/dashboard');
+          break;
+        default:
+          router.push('/');
       }
-    } catch {
-      setError("เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
+      
+      // Refresh page to update navbar
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
+      
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
     } finally {
       setIsLoading(false);
     }
@@ -49,13 +63,8 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-
-      {/* Main Content */}
       <main className="max-w-6xl mx-auto px-6 py-6">
-        {/* Banner Component */}
         <Banner />
-
-        {/* Login Form Section */}
         <div className="max-w-md mx-auto mt-8">
           <div className="text-center mb-6">
             <h2 className="text-2xl font-bold text-gray-800 mb-2">ลงชื่อเข้าใช้</h2>
@@ -92,7 +101,7 @@ export default function LoginPage() {
 
             <div className="text-center">
               <p className="text-red-500 text-sm mb-4">
-                ยังไม่มีบัญชีหรือไม่? <Link href="/register" className="hover:underline">คลิกลงชื่อ</Link>
+                ยังไม่มีบัญชีหรือไม่? <Link href="/register" className="hover:underline">คลิกลงทะเบียน</Link>
               </p>
             </div>
 
@@ -106,8 +115,6 @@ export default function LoginPage() {
           </form>
         </div>
       </main>
-
-      {/* Footer Component */}
       <Footer />
     </div>
   );

@@ -48,7 +48,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     
     setUser(userData);
-    return userData; // Return user data for role-based redirect
+    
+    // Also store in localStorage for navbar compatibility
+    localStorage.setItem('user', JSON.stringify({
+      id: response.id,
+      email: response.email,
+      firstName: response.firstName,
+      lastName: response.lastName,
+      role: response.role,
+    }));
+    
+    return userData;
   };
 
   const logout = () => {

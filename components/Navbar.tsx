@@ -1,45 +1,28 @@
-"use client"
+﻿"use client";
 
-import Image from 'next/image'
-import Link from 'next/link'
-import { User, History, LogOut, ChevronDown } from 'lucide-react'
-import { useState, useEffect } from 'react'
-import { usePathname } from 'next/navigation'
+import Image from 'next/image';
+import Link from 'next/link';
+import { User, History, LogOut, ChevronDown, Shield } from 'lucide-react';
+import { useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuth } from '@/context/auth-context';
 
-export default function Navbar(){
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [user, setUser] = useState<{ email: string } | null>(null)
-  const [showDropdown, setShowDropdown] = useState(false)
-  const pathname = usePathname()
+export default function Navbar() {
+  const { user, isAuthenticated, logout, isLoading } = useAuth();
+  const [showDropdown, setShowDropdown] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+  const isHomePage = pathname === '/';
 
-  // ตรวจสอบว่าอยู่หน้าแรกหรือไม่
-  const isHomePage = pathname === '/'
-
-  // ตรวจสอบสถานะการล็อกอินจาก localStorage
-  useEffect(() => {
-    const savedUser = localStorage.getItem('user')
-    if (savedUser) {
-      const userData = JSON.parse(savedUser)
-      setUser(userData)
-      setIsLoggedIn(true)
-    }
-  }, [])
-
-  // ฟังก์ชันออกจากระบบ
   const handleLogout = () => {
-    setUser(null)
-    setIsLoggedIn(false)
-    localStorage.removeItem('user')
-    sessionStorage.removeItem('bookingDraft')
-    setShowDropdown(false)
-    // รีเฟรชหน้าเพื่ออัพเดท state ใน component อื่นๆ
-    window.location.reload()
-  }
+    logout();
+    setShowDropdown(false);
+    router.push('/');
+  };
 
   return (
     <nav className="w-full bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 shadow-lg px-8 py-4 border-b border-emerald-200/50">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
-        {/* Logo & Brand */}
         <Link href="/" className="flex items-center gap-4">
           <div className="relative bg-emerald-100/60 backdrop-blur-sm rounded-xl p-2 border border-emerald-200/60">
             <Image 
@@ -48,28 +31,23 @@ export default function Navbar(){
               width={120} 
               height={60}
               className="object-contain h-10 w-auto"
-              priority
             />
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-3xl font-bold text-emerald-800 tracking-wide">
+          <div className="flex flex-col">
+            <span className="text-2xl font-bold bg-gradient-to-r from-emerald-700 via-green-600 to-teal-600 bg-clip-text text-transparent">
               Doctora
             </span>
+            <span className="text-xs text-emerald-600/80 -mt-1">Healthcare Management</span>
           </div>
         </Link>
-        
-        {/* Navigation & Auth Buttons */}
-        <div className="flex items-center space-x-6">
-          {/* Decorative Elements */}
-          <div className="hidden lg:flex items-center gap-3 opacity-30">
-            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-            <div className="w-1 h-1 bg-emerald-400 rounded-full animate-pulse delay-100"></div>
-            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse delay-200"></div>
-          </div>
 
-          {/* Auth Section */}
-          {isLoggedIn ? (
-            // Profile Dropdown เมื่อล็อกอินแล้ว
+        <div className="flex items-center gap-6">
+          {isLoading ? (
+            <div className="flex items-center gap-2 px-4 py-2 bg-emerald-100/60 backdrop-blur-sm rounded-xl border border-emerald-200/60">
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-600 border-t-transparent"></div>
+              <span className="text-emerald-600 text-sm">Loading...</span>
+            </div>
+          ) : isAuthenticated ? (
             <div className="relative">
               <button
                 onClick={() => setShowDropdown(!showDropdown)}
@@ -78,57 +56,78 @@ export default function Navbar(){
                 <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
                   <User className="w-4 h-4 text-white" />
                 </div>
-                <span className="text-emerald-800 font-medium">Profile</span>
+                <span className="text-emerald-800 font-medium">
+                  {user?.firstName || 'Profile'}
+                </span>
                 <ChevronDown className="w-4 h-4 text-emerald-600" />
               </button>
 
-              {/* Dropdown Menu */}
               {showDropdown && (
-                <div className="absolute right-0 mt-2 w-48 bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-emerald-200/60 py-2 z-50">
+                <div className="absolute right-0 mt-2 w-56 bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-emerald-200/60 py-2 z-50">
                   <div className="px-4 py-2 border-b border-emerald-100">
                     <p className="text-sm text-emerald-600">เข้าสู่ระบบเป็น</p>
-                    <p className="text-emerald-800 font-medium truncate">{user?.email}</p>
+                    <p className="text-emerald-800 font-medium truncate">
+                      {user?.firstName} {user?.lastName}
+                    </p>
+                    <p className="text-xs text-emerald-500">{user?.email}</p>
+                    {user?.role === 'ADMIN' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full mt-1">
+                        <Shield className="w-3 h-3" />
+                        Admin
+                      </span>
+                    )}
                   </div>
+                  
+                  {user?.role === 'ADMIN' && (
+                    <Link
+                      href="/admin"
+                      onClick={() => setShowDropdown(false)}
+                      className="flex items-center gap-2 px-4 py-2 text-red-700 hover:bg-red-50 transition-colors"
+                    >
+                      <Shield className="w-4 h-4" />
+                      <span>Admin Panel</span>
+                    </Link>
+                  )}
+                  
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setShowDropdown(false)}
+                    className="flex items-center gap-2 px-4 py-2 text-emerald-700 hover:bg-emerald-50 transition-colors"
+                  >
+                    <User className="w-4 h-4" />
+                    <span>Dashboard</span>
+                  </Link>
+                  
                   <Link
                     href="/History"
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 transition-colors text-emerald-700"
                     onClick={() => setShowDropdown(false)}
+                    className="flex items-center gap-2 px-4 py-2 text-emerald-700 hover:bg-emerald-50 transition-colors"
                   >
                     <History className="w-4 h-4" />
-                    <span>History</span>
+                    <span>ประวัติการจอง</span>
                   </Link>
+                  
                   <button
                     onClick={handleLogout}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 transition-colors text-red-600 w-full text-left"
+                    className="flex items-center gap-2 px-4 py-2 w-full text-left text-red-600 hover:bg-red-50 transition-colors"
                   >
                     <LogOut className="w-4 h-4" />
-                    <span>Log out</span>
+                    <span>ออกจากระบบ</span>
                   </button>
                 </div>
               )}
             </div>
           ) : isHomePage ? (
-            // Login/Register Buttons เฉพาะในหน้าแรกเมื่อยังไม่ล็อกอิน
-            <div className="flex items-center gap-3">
-              <Link
-                href="/login"
-                className="px-6 py-2 text-emerald-700 hover:text-emerald-800 font-medium transition-colors"
-              >
-                Log in
-              </Link>
-              <Link
-                href="/register"
-                className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
-              >
-                Register
-              </Link>
-            </div>
+            <Link
+              href="/login"
+              className="flex items-center gap-2 px-6 py-3 bg-emerald-500/90 backdrop-blur-sm text-white rounded-xl border border-emerald-400/60 hover:bg-emerald-600/90 transition-all duration-200 shadow-md hover:shadow-lg"
+            >
+              <User className="w-4 h-4" />
+              <span className="font-medium">เข้าสู่ระบบ</span>
+            </Link>
           ) : null}
         </div>
       </div>
-      
-      {/* Bottom glow effect */}
-      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-300/40 via-green-300/40 to-teal-300/40"></div>
     </nav>
-  )
+  );
 }
