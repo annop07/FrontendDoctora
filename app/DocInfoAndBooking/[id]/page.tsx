@@ -19,7 +19,35 @@ interface DaySchedule {
   slots: TimeSlot[];
 }
 
-// ===================== Utilities (hoisted) =====================
+interface Doctor {
+  id: number;
+  doctorName: string;
+  email: string;
+  specialty: { id: number; name: string };
+  licenseNumber: string;
+  experienceYears: number;
+  consultationFee: number;
+  roomNumber: string;
+  isActive: boolean;
+  bio?: string;
+}
+
+// ===================== API Service =====================
+class DoctorApiService {
+  private baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082';
+
+  async getDoctorById(id: number): Promise<Doctor> {
+    const response = await fetch(`${this.baseUrl}/api/doctors/${id}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch doctor: ${response.status}`);
+    }
+    
+    return response.json();
+  }
+}
+
+// ===================== Utilities =====================
 function sameYMD(a: Date, b: Date) {
   return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
 }
@@ -43,79 +71,38 @@ function getWeekDates(startDate: Date) {
 
 const DoctorDetailWireframes = () => {
   const router = useRouter();
+  const params = useParams();
+  const routeId = Number(params?.id) || 1;
 
-  // States for UI - ใช้โครงสร้างที่ปรับปรุงแล้ว
+  // States
+  const [doctor, setDoctor] = useState<Doctor | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewStart, setViewStart] = useState<Date>(getStartOfWeek(new Date()));
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
 
-  // อ่าน :id จาก /DocInfoAndBooking/[id]
-  const params = useParams();
-  const routeId = Number(params?.id) || 1;
+  const apiService = new DoctorApiService();
 
-  // Mock doctors data
-  const mockDoctors = [
-    { 
-      id: 1, 
-      name: "นพ. กฤต อินทรจินดา", 
-      department: "กระดูกและข้อ",
-      gender: "ชาย",
-      education: "แพทยศาสตรดุษฎีบัณฑิต มหาวิทยาลัยมหิดล",
-      languages: ["ไทย", "อังกฤษ"],
-      specialties: "ผ่าตัดข้อเข่า, การรักษากระดูกสันหลัง, การผ่าตัดกระดูกหัก, การรักษาข้อเสื่อม",
-      availableTimes: ["9:00-10:00", "10:00-11:00", "13:00-14:00"],
-      nextAvailableTime: "9:00-10:00"
-    },
-    { 
-      id: 2, 
-      name: "นพ.รีโม", 
-      department: "หัวใจและทรวงอก",
-      gender: "ชาย",
-      education: "แพทยศาสตรดุษฎีบัณฑิต จุฬาลงกรณ์มหาวิทยาลัย",
-      languages: ["ไทย", "อังกฤษ", "ญี่ปุ่น"],
-      specialties: "ผ่าตัดหัวใจ, การรักษาหลอดเลือดหัวใจ, การใส่เครื่องกระตุ้นหัวใจ, การผ่าตัดลิ้นหัวใจ",
-      availableTimes: ["10:00-11:00", "14:00-15:00"],
-      nextAvailableTime: "10:00-11:00"
-    },
-    { 
-      id: 3, 
-      name: "นพ.อิง", 
-      department: "นรีเวชกรรม",
-      gender: "หญิง",
-      education: "แพทยศาสตรดุษฎีบัณฑิต มหาวิทยาลัยศิริราช",
-      languages: ["ไทย", "อังกฤษ"],
-      specialties: "การตั้งครรภ์และคลอด, การรักษาปัญหาฮอร์โมน, การผ่าตัดนรีเวช, การตรวจมะเร็งมดลูก",
-      availableTimes: ["11:00-12:00", "15:00-16:00"],
-      nextAvailableTime: "11:00-12:00"
-    },
-    { 
-      id: 4, 
-      name: "นพ.ก้อง", 
-      department: "กุมารเวชกรรม",
-      gender: "ชาย",
-      education: "แพทยศาสตรดุษฎีบัณฑิต มหาวิทยาลัยรามาธิบดี",
-      languages: ["ไทย", "อังกฤษ"],
-      specialties: "การรักษาเด็กแรกเกิด, วัคซีนเด็ก, โรคติดเชื้อในเด็ก, การเจริญเติบโตของเด็ก",
-      availableTimes: ["9:00-10:00", "12:00-13:00"],
-      nextAvailableTime: "12:00-13:00"
-    },
-    { 
-      id: 5, 
-      name: "นพ.ฟิล์ม", 
-      department: "กุมารเวชกรรม",
-      gender: "ชาย",
-      education: "แพทยศาสตรดุษฎีบัณฑิต มหาวิทยาลัยเชียงใหม่",
-      languages: ["ไทย", "อังกฤษ"],
-      specialties: "การรักษาโรคภูมิแพ้ในเด็ก, โรคหอบหืดเด็ก, การพัฒนาการเด็ก, โภชนาการเด็ก",
-      availableTimes: ["9:00-10:00", "12:00-13:00"],
-      nextAvailableTime: "12:00-13:00"
-    }
-  ];
+  // Load doctor data from backend
+  useEffect(() => {
+    const loadDoctor = async () => {
+      try {
+        setLoading(true);
+        const doctorData = await apiService.getDoctorById(routeId);
+        setDoctor(doctorData);
+      } catch (error) {
+        console.error('Failed to load doctor:', error);
+        setError(error instanceof Error ? error.message : 'Failed to load doctor data');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // หาข้อมูลหมอจาก ID - ใช้ mock data เป็นหลัก
-  const doctor = mockDoctors.find(doc => doc.id === routeId) || mockDoctors[0];
+    loadDoctor();
+  }, [routeId]);
 
-  // สร้างตารางเวลาประจำสัปดาห์ (mock) - แบบช่วงเวลา 1 ชั่วโมงตามรูปแบบเดิม
+  // Mock schedule generation (this would come from backend in real implementation)
   const BASE_SLOTS = [
     "09:00-10:00", "10:00-11:00", "13:00-14:00", "14:00-15:00", "15:00-16:00"
   ];
@@ -149,11 +136,10 @@ const DoctorDetailWireframes = () => {
     });
   };
 
-  // ให้ตารางเวลาตามสัปดาห์ที่กำลังแสดงผล (อิง viewStart)
   const getCurrentWeekDates = () => getWeekDates(viewStart);
-  const mockWeeklySchedule = generateScheduleForDoctor(doctor.id, getCurrentWeekDates());
+  const mockWeeklySchedule = doctor ? generateScheduleForDoctor(doctor.id, getCurrentWeekDates()) : [];
 
-  // เปลี่ยนวันที่ (อัปเดต selectedDate + viewStart ให้โชว์สัปดาห์เดียวกัน)
+  // Handle date change
   const handleDateChange = (dateString: string) => {
     const newDate = new Date(dateString);
     if (isNaN(newDate.getTime())) return;
@@ -162,14 +148,14 @@ const DoctorDetailWireframes = () => {
     setSelectedTimeSlot(null);
   };
 
-  // เลือก time slot (คลิกคอลัมน์วันไหน → เลือกวันนั้นด้วย)
+  // Handle time slot selection
   const handleTimeSlotClick = (dayDate: Date, slotData: { time: string, available: boolean }) => {
     if (!slotData.available) return;
     setSelectedDate(dayDate);
     setSelectedTimeSlot(slotData.time);
   };
 
-  // เลื่อนสัปดาห์
+  // Navigation functions
   const nextWeek = () => {
     const next = new Date(viewStart);
     next.setDate(viewStart.getDate() + 7);
@@ -181,23 +167,19 @@ const DoctorDetailWireframes = () => {
     const prev = new Date(viewStart);
     prev.setDate(viewStart.getDate() - 7);
     
-    // ตรวจสอบว่าสัปดาห์ก่อนหน้ามีวันที่เป็นอนาคตหรือไม่
     const prevWeekDates = getWeekDates(prev);
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // รีเซ็ตเวลาให้เป็น 00:00:00
+    today.setHours(0, 0, 0, 0);
     
-    // หาวันสุดท้ายของสัปดาห์ก่อนหน้า (วันเสาร์)
     const lastDayOfPrevWeek = prevWeekDates[6];
     lastDayOfPrevWeek.setHours(0, 0, 0, 0);
     
-    // ถ้าวันสุดท้ายของสัปดาห์ก่อนหน้าเป็นวันปัจจุบันหรืออนาคต ให้เลื่อนได้
     if (lastDayOfPrevWeek >= today) {
       setViewStart(prev);
       setSelectedTimeSlot(null);
     }
   };
 
-  // ตรวจสอบว่าสามารถเลื่อนกลับได้หรือไม่
   const canGoPrevious = () => {
     const prev = new Date(viewStart);
     prev.setDate(viewStart.getDate() - 7);
@@ -211,13 +193,13 @@ const DoctorDetailWireframes = () => {
     return lastDayOfPrevWeek >= today;
   };
 
-  // ยืนยันการจอง
+  // Booking confirmation
   const handleBookingConfirm = () => {
-    if (!selectedTimeSlot) return;
+    if (!selectedTimeSlot || !doctor) return;
 
     const draft = JSON.parse(sessionStorage.getItem('bookingDraft') || '{}');
-    draft.selectedDoctor = doctor.name;
-    draft.depart = doctor.department;
+    draft.selectedDoctor = doctor.doctorName;
+    draft.depart = doctor.specialty.name;
     draft.selectedDate = selectedDate.toISOString();
     draft.selectedTime = selectedTimeSlot;
     sessionStorage.setItem('bookingDraft', JSON.stringify(draft));
@@ -225,7 +207,7 @@ const DoctorDetailWireframes = () => {
     router.push('/patientForm');
   };
 
-  // เพิ่ม useEffect สำหรับการ scroll เมื่อมาจากปุ่ม "นัดหมาย"
+  // Scroll to booking section when hash is present
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.hash === '#booking') {
       setTimeout(() => {
@@ -236,6 +218,68 @@ const DoctorDetailWireframes = () => {
       }, 100);
     }
   }, []);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
+        <Navbar />
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center mb-4">
+              <div className="p-3 bg-emerald-100 rounded-full">
+                <Stethoscope className="h-8 w-8 text-emerald-600" />
+              </div>
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+              ข้อมูลแพทย์และการจองนัด
+            </h1>
+          </div>
+          <div className="flex justify-center items-center min-h-96">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
+              <p className="text-emerald-700 font-medium">กำลังโหลดข้อมูลแพทย์...</p>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !doctor) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
+        <Navbar />
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center mb-4">
+              <div className="p-3 bg-emerald-100 rounded-full">
+                <Stethoscope className="h-8 w-8 text-emerald-600" />
+              </div>
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+              ข้อมูลแพทย์และการจองนัด
+            </h1>
+          </div>
+          <div className="text-center">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
+              <h3 className="text-red-800 font-medium mb-2">เกิดข้อผิดพลาด</h3>
+              <p className="text-red-700 text-sm mb-4">{error || 'ไม่พบข้อมูลแพทย์'}</p>
+              <button 
+                onClick={() => router.back()}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                กลับ
+              </button>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
@@ -258,7 +302,7 @@ const DoctorDetailWireframes = () => {
           </p>
         </div>
 
-        {/* Doctor Profile Card - Medical Green Theme */}
+        {/* Doctor Profile Card */}
         <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-emerald-100 overflow-hidden">
           <div className="bg-gradient-to-r from-emerald-500 via-teal-600 to-green-700 p-8 text-white">
             <div className="flex flex-col md:flex-row items-center gap-6">
@@ -271,83 +315,76 @@ const DoctorDetailWireframes = () => {
                 </div>
               </div>
               <div className="text-center md:text-left flex-1">
-                <h1 className="text-3xl md:text-4xl font-bold mb-3">{doctor.name}</h1>
+                <h1 className="text-3xl md:text-4xl font-bold mb-3">{doctor.doctorName}</h1>
                 <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
                   <Building className="w-5 h-5" />
-                  <p className="text-xl font-medium opacity-90">{doctor.department}</p>
+                  <p className="text-xl font-medium opacity-90">{doctor.specialty.name}</p>
+                </div>
+                <div className="flex flex-wrap gap-4 justify-center md:justify-start text-sm opacity-90">
+                  <span>ประสบการณ์: {doctor.experienceYears} ปี</span>
+                  <span>•</span>
+                  <span>ค่าตรวจ: ฿{doctor.consultationFee}</span>
+                  {doctor.roomNumber && (
+                    <>
+                      <span>•</span>
+                      <span>ห้อง: {doctor.roomNumber}</span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Doctor Information Cards - Medical Theme */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Specialties Card */}
+        {/* Doctor Information Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Bio Card */}
           <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-emerald-100 p-6 hover:shadow-xl transition-all duration-300">
             <div className="flex items-center gap-4 mb-4">
               <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
                 <Stethoscope className="w-6 h-6 text-white" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900">ความชำนาญ</h3>
+              <h3 className="text-lg font-bold text-gray-900">ข้อมูลแพทย์</h3>
             </div>
             <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {doctor.specialties && doctor.specialties.split(',').map((specialty: string, index: number) => (
-                  <span 
-                    key={index} 
-                    className="px-3 py-1.5 bg-gradient-to-r from-emerald-100 to-teal-100 text-emerald-700 rounded-full text-sm font-medium border border-emerald-200"
-                  >
-                    {specialty.trim()}
-                  </span>
-                ))}
-                {!doctor.specialties && (
-                  <span className="px-3 py-1.5 bg-gray-100 text-gray-500 rounded-full text-sm font-medium border border-gray-200">
-                    ไม่ระบุความชำนาญ
-                  </span>
-                )}
+              <div className="text-emerald-700 font-medium leading-relaxed">
+                {doctor.bio || 'แพทย์ผู้เชี่ยวชาญที่มีประสบการณ์ในการรักษาผู้ป่วย'}
+              </div>
+              <div className="pt-2 border-t border-emerald-100">
+                <p className="text-sm text-gray-600 mb-1">เลขใบประกอบวิชาชีพ</p>
+                <p className="font-semibold text-gray-800">{doctor.licenseNumber}</p>
               </div>
             </div>
           </div>
 
-          {/* Education Card */}
+          {/* Contact Info Card */}
           <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-emerald-100 p-6 hover:shadow-xl transition-all duration-300">
             <div className="flex items-center gap-4 mb-4">
               <div className="w-12 h-12 bg-gradient-to-r from-teal-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
-                <GraduationCap className="w-6 h-6 text-white" />
+                <Building className="w-6 h-6 text-white" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900">การศึกษา</h3>
-            </div>
-            <div className="space-y-2">
-              <p className="font-semibold text-emerald-700 text-sm leading-relaxed">{doctor.education}</p>
-              <p className="text-xs text-gray-500">ประกาศนียบัตรความเชี่ยวชาญ</p>
-            </div>
-          </div>
-
-          {/* Languages Card */}
-          <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-emerald-100 p-6 hover:shadow-xl transition-all duration-300">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
-                <Languages className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-900">การสื่อสาร</h3>
+              <h3 className="text-lg font-bold text-gray-900">ข้อมูลติดต่อ</h3>
             </div>
             <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {doctor.languages.map((lang: string, index: number) => (
-                  <span 
-                    key={index} 
-                    className="px-3 py-1.5 bg-gradient-to-r from-emerald-100 to-teal-100 text-emerald-700 rounded-full text-sm font-medium border border-emerald-200"
-                  >
-                    {lang}
-                  </span>
-                ))}
+              <div>
+                <p className="text-sm text-gray-600 mb-1">อีเมล</p>
+                <p className="font-semibold text-gray-800">{doctor.email}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 mb-1">สถานะ</p>
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  doctor.isActive 
+                    ? 'bg-green-100 text-green-800' 
+                    : 'bg-red-100 text-red-800'
+                }`}>
+                  {doctor.isActive ? 'พร้อมให้บริการ' : 'ไม่พร้อมให้บริการ'}
+                </span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Appointment Booking Section - Medical Green Theme */}
+        {/* Appointment Booking Section */}
         <div id="booking-section" className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-emerald-100 overflow-hidden">
           {/* Header */}
           <div className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-8 py-6">
@@ -357,7 +394,7 @@ const DoctorDetailWireframes = () => {
               </div>
               <div>
                 <h2 className="text-2xl font-bold">การนัดเข้ารักษา</h2>
-                <p className="text-emerald-100 text-sm">{doctor.name}</p>
+                <p className="text-emerald-100 text-sm">{doctor.doctorName}</p>
               </div>
             </div>
           </div>
@@ -386,6 +423,9 @@ const DoctorDetailWireframes = () => {
                 <div className="flex items-center gap-3">
                   <Clock className="w-6 h-6 text-emerald-600" />
                   <h3 className="text-xl font-bold text-gray-900">ตารางเวลาตรวจ</h3>
+                  <span className="text-sm text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                    (Mock Data - จะเชื่อม Backend ในอนาคต)
+                  </span>
                 </div>
                 
                 <div className="flex items-center gap-4">
@@ -418,7 +458,7 @@ const DoctorDetailWireframes = () => {
                 </div>
               </div>
 
-              {/* Schedule Table - Medical Green Theme */}
+              {/* Schedule Table */}
               <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-6 border border-emerald-100">
                 <div className="grid grid-cols-7 gap-3">
                   {mockWeeklySchedule.map((dayData: DaySchedule, index: number) => {
@@ -426,7 +466,6 @@ const DoctorDetailWireframes = () => {
                     const isToday = sameYMD(dayData.dateObj, new Date());
                     const isPastDate = dayData.dateObj < new Date(new Date().setHours(0, 0, 0, 0));
                     
-                    // กรองเอาเฉพาะช่วงเวลาที่ว่างและไม่ใช่วันที่ผ่านมาแล้ว
                     const availableSlots = (dayData.slots && !isPastDate) 
                       ? dayData.slots.filter((slot: TimeSlot) => slot.available) 
                       : [];
@@ -509,6 +548,16 @@ const DoctorDetailWireframes = () => {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Backend Integration Status */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h4 className="text-blue-800 font-medium mb-2">🔗 Backend Integration Status</h4>
+          <div className="text-sm text-blue-700 space-y-1">
+            <p>✅ <strong>Connected:</strong> Doctor profile data from backend API</p>
+            <p>⏳ <strong>Mock Data:</strong> Schedule/availability data (requires backend implementation)</p>
+            <p>📝 <strong>Next Steps:</strong> Implement availability API endpoints in Spring Boot</p>
           </div>
         </div>
       </div>

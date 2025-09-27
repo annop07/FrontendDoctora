@@ -18,10 +18,6 @@ interface Doctor {
   roomNumber: string;
   isActive: boolean;
   bio?: string;
-  education?: string;
-  languages?: string[];
-  availableTimes?: string[];
-  nextAvailableTime?: string;
 }
 
 interface Specialty {
@@ -40,12 +36,32 @@ interface DoctorSearchParams {
   maxFee?: number;
 }
 
+// Types for API responses
+interface DoctorSearchResponse {
+  doctors: Doctor[];
+  currentPage: number;
+  totalItems: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+interface SpecialtyResponse {
+  specialties: Specialty[];
+}
+
+interface DoctorSearchByNameResponse {
+  doctors: Doctor[];
+}
+
 // API Service Class
 class ApiService {
   private baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082';
 
   private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
+    
+    console.log('Making API request to:', url);
     
     const config: RequestInit = {
       ...options,
@@ -55,46 +71,137 @@ class ApiService {
       },
     };
 
-    const response = await fetch(url, config);
+    try {
+      const response = await fetch(url, config);
+      
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
-    if (!response.ok) {
-      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.message || errorMessage;
-      } catch (e) {
-        // Use default error message
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        
+        try {
+          const errorData = await response.json();
+          console.log('Error response data:', errorData);
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch (jsonError) {
+          // If response is not JSON, try to get text
+          try {
+            const errorText = await response.text();
+            console.log('Error response text:', errorText.substring(0, 500));
+            if (errorText.includes('<!DOCTYPE html>')) {
+              errorMessage = `Backend endpoint not found. Please ensure your Spring Boot application is running and the endpoint ${endpoint} exists.`;
+            }
+          } catch (textError) {
+            console.error('Could not parse error response:', textError);
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
-      throw new Error(errorMessage);
+
+      const data = await response.json();
+      console.log('Success response data:', data);
+      return data;
+    } catch (fetchError) {
+      console.error('Fetch error:', fetchError);
+      if (fetchError instanceof TypeError && fetchError.message.includes('fetch')) {
+        throw new Error(`Cannot connect to backend at ${this.baseUrl}. Please ensure your Spring Boot application is running on port 8082.`);
+      }
+      throw fetchError;
     }
-
-    return response.json();
   }
 
-  async getDoctors(params: DoctorSearchParams = {}): Promise<{
-    doctors: Doctor[];
-    currentPage: number;
-    totalItems: number;
-    totalPages: number;
-    hasNext: boolean;
-    hasPrevious: boolean;
-  }> {
-    const searchParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        searchParams.append(key, value.toString());
+  async getDoctors(params: DoctorSearchParams = {}): Promise<DoctorSearchResponse> {
+    // Try different endpoint strategies based on what parameters are provided
+    try {
+      // Strategy 1: Try the full search endpoint first
+      if (params.name || params.specialty || params.minFee || params.maxFee) {
+        return await this.tryAdvancedSearch(params);
       }
-    });
+      
+      // Strategy 2: Simple pagination only
+      return await this.trySimpleList(params);
+      
+    } catch (error) {
+      console.error('Advanced search failed, trying fallbacks:', error);
+      
+      // Fallback strategy: Use individual endpoints
+      try {
+        if (params.name && !params.specialty) {
+          // Name search only
+          const searchResponse = await this.searchDoctorsByName(params.name);
+          return this.transformSearchResponse(searchResponse);
+        } else if (params.specialty && !params.name) {
+          // Specialty filter only
+          return await this.getDoctorsBySpecialty(params.specialty, params.page || 0, params.size || 10);
+        } else {
+          // Get all doctors
+          return await this.trySimpleList(params);
+        }
+      } catch (fallbackError) {
+        console.error('All search strategies failed:', fallbackError);
+        // Return empty result instead of throwing
+        return {
+          doctors: [],
+          currentPage: params.page || 0,
+          totalItems: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrevious: false
+        };
+      }
+    }
+  }
+
+  private async tryAdvancedSearch(params: DoctorSearchParams): Promise<DoctorSearchResponse> {
+    const searchParams = new URLSearchParams();
     
-    return this.makeRequest(`/api/doctors?${searchParams.toString()}`);
+    if (params.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params.name) searchParams.append('name', params.name);
+    if (params.specialty) searchParams.append('specialty', params.specialty.toString());
+    if (params.minFee !== undefined) searchParams.append('minFee', params.minFee.toString());
+    if (params.maxFee !== undefined) searchParams.append('maxFee', params.maxFee.toString());
+    
+    const endpoint = `/api/doctors?${searchParams.toString()}`;
+    return await this.makeRequest<DoctorSearchResponse>(endpoint);
   }
 
-  async getSpecialtiesWithCount(): Promise<{ specialties: Specialty[] }> {
-    return this.makeRequest('/api/specialties/with-count');
+  private async trySimpleList(params: DoctorSearchParams): Promise<DoctorSearchResponse> {
+    const searchParams = new URLSearchParams();
+    
+    // Only send basic pagination parameters
+    if (params.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params.size !== undefined) searchParams.append('size', params.size.toString());
+    searchParams.append('sort', 'id'); // Add default sort
+    
+    const endpoint = `/api/doctors?${searchParams.toString()}`;
+    return await this.makeRequest<DoctorSearchResponse>(endpoint);
   }
 
-  async searchDoctorsByName(name: string): Promise<{ doctors: Doctor[] }> {
-    return this.makeRequest(`/api/doctors/search?name=${encodeURIComponent(name)}`);
+  private async getDoctorsBySpecialty(specialtyId: number, page: number, size: number): Promise<DoctorSearchResponse> {
+    const endpoint = `/api/doctors/specialty/${specialtyId}?page=${page}&size=${size}`;
+    return await this.makeRequest<DoctorSearchResponse>(endpoint);
+  }
+
+  private transformSearchResponse(searchResponse: DoctorSearchByNameResponse): DoctorSearchResponse {
+    return {
+      doctors: searchResponse.doctors,
+      currentPage: 0,
+      totalItems: searchResponse.doctors.length,
+      totalPages: 1,
+      hasNext: false,
+      hasPrevious: false
+    };
+  }
+
+  async getSpecialtiesWithCount(): Promise<SpecialtyResponse> {
+    return this.makeRequest<SpecialtyResponse>('/api/specialties/with-count');
+  }
+
+  async searchDoctorsByName(name: string): Promise<DoctorSearchByNameResponse> {
+    return this.makeRequest<DoctorSearchByNameResponse>(`/api/doctors/search?name=${encodeURIComponent(name)}`);
   }
 }
 
@@ -146,11 +253,9 @@ export default function DoctorSearchPage() {
   // Search & filters (UI state)
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [selectedGender, setSelectedGender] = useState<"ชาย" | "หญิง" | "">("");
   const [selectedTime, setSelectedTime] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedDepartment, setSelectedDepartment] = useState("");
-  const [doctorAvailable, setDoctorAvailable] = useState(false);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -158,7 +263,7 @@ export default function DoctorSearchPage() {
   const [totalItems, setTotalItems] = useState(0);
   const doctorsPerPage = 12;
 
-  // Time slots for filtering (kept for UI, but not used in backend filtering yet)
+  // Time slots for filtering (UI only - not connected to backend yet)
   const timeSlots = {
     morning: ["9:00-10:00", "10:00-11:00", "11:00-12:00"],
     afternoon: ["12:00-13:00", "13:00-14:00", "14:00-15:00"]
@@ -213,8 +318,7 @@ export default function DoctorSearchPage() {
           }
         }
 
-        // Note: Gender, time, date, and availability filters are not yet implemented in backend
-        // These will need to be added to your backend API later
+        console.log('Loading doctors with params:', params);
 
         const response = await apiService.getDoctors(params);
         
@@ -224,8 +328,25 @@ export default function DoctorSearchPage() {
         
       } catch (error) {
         console.error('Failed to load doctors:', error);
-        setError(error instanceof Error ? error.message : 'Failed to load doctors');
+        const errorMessage = error instanceof Error ? error.message : 'Failed to load doctors';
+        
+        // Provide helpful error messages for common issues
+        if (errorMessage.includes('JDBC') || errorMessage.includes('PostgreSQL') || errorMessage.includes('function lower')) {
+          setError('Database query error in backend. Please check the backend logs and update the DoctorRepository queries.');
+        } else if (errorMessage.includes('400')) {
+          setError('Backend returned 400 error. Check if all query parameters are supported by your DoctorController.');
+        } else if (errorMessage.includes('404')) {
+          setError('API endpoint not found. Please ensure your Spring Boot application has the correct controller mappings.');
+        } else if (errorMessage.includes('Cannot connect')) {
+          setError('Cannot connect to backend. Please ensure your Spring Boot application is running on port 8082.');
+        } else {
+          setError(`Failed to load doctors: ${errorMessage}`);
+        }
+        
+        // Don't completely break the UI - show empty state
         setDoctors([]);
+        setTotalPages(1);
+        setTotalItems(0);
       } finally {
         setLoading(false);
       }
@@ -252,10 +373,8 @@ export default function DoctorSearchPage() {
   const resetFilters = () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    setSelectedGender("");
     setSelectedTime("");
     setSelectedDate(tomorrow);
-    setDoctorAvailable(false);
     setCurrentPage(1);
     setSearchTerm("");
   };
@@ -265,8 +384,6 @@ export default function DoctorSearchPage() {
     const q = new URLSearchParams({
       name: doctor.doctorName,
       department: doctor.specialty.name,
-      education: doctor.education || '',
-      languages: doctor.languages?.join(",") || '',
     }).toString();
 
     const hash = mode === "booking" ? "#booking" : "";
@@ -400,30 +517,9 @@ export default function DoctorSearchPage() {
               <div className="flex items-center gap-2 mb-4">
                 <Settings className="h-5 w-5 text-emerald-600" />
                 <h3 className="text-lg font-semibold text-gray-900">ตัวกรองการค้นหา</h3>
-                <span className="text-sm text-yellow-600 bg-yellow-50 px-2 py-1 rounded">
-                  (บางตัวกรองยังไม่เชื่อมต่อกับ Backend)
-                </span>
               </div>
               
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Gender - Not connected to backend yet */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <User className="h-4 w-4 text-emerald-600" />
-                    เพศ <span className="text-xs text-gray-500">(ยังไม่ใช้งาน)</span>
-                  </label>
-                  <select
-                    value={selectedGender}
-                    onChange={(e) => setSelectedGender(e.target.value as "ชาย" | "หญิง" | "")}
-                    className="w-full rounded-xl border-2 border-emerald-200 px-4 py-3 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200 bg-white/80 opacity-60"
-                    disabled
-                  >
-                    <option value="">เลือกเพศทั้งหมด</option>
-                    <option value="ชาย">ชาย</option>
-                    <option value="หญิง">หญิง</option>
-                  </select>
-                </div>
-
                 {/* Department - Connected to backend */}
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
@@ -442,24 +538,6 @@ export default function DoctorSearchPage() {
                       </option>
                     ))}
                   </select>
-                </div>
-
-                {/* Available Status - Not connected to backend yet */}
-                <div className="space-y-2">
-                  <label className="flex items-center space-x-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={doctorAvailable}
-                      onChange={(e) => setDoctorAvailable(e.target.checked)}
-                      className="w-5 h-5 text-emerald-600 border-emerald-300 rounded focus:ring-emerald-500 focus:ring-2"
-                      disabled
-                    />
-                    <div className="flex items-center gap-2 opacity-60">   
-                      <span className="text-sm font-medium text-gray-700">แพทย์พร้อมนัด</span>
-                      <CheckCircle className="h-4 w-4 text-emerald-600" />
-                      <span className="text-xs text-gray-500">(ยังไม่ใช้งาน)</span>
-                    </div>
-                  </label>
                 </div>
               </div>
 
@@ -715,7 +793,7 @@ export default function DoctorSearchPage() {
           <h4 className="text-blue-800 font-medium mb-2">🔗 Backend Integration Status</h4>
           <div className="text-sm text-blue-700 space-y-1">
             <p>✅ <strong>Connected:</strong> Doctor data, specialty data, search by name, department filtering</p>
-            <p>⏳ <strong>Not yet implemented:</strong> Gender, time slots, date filtering, availability status</p>
+            <p>⏳ <strong>Not yet implemented:</strong> Time slots, date filtering, availability status</p>
             <p>📝 <strong>Note:</strong> Add these filters to your Spring Boot backend for full functionality</p>
           </div>
         </div>
