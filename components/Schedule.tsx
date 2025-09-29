@@ -1,6 +1,7 @@
 'use client'
 import React from "react"
 import { Calendar } from "@/components/ui/calendar"
+import { Slot } from "@radix-ui/react-slot"
 
 const Schedule = ({ onChange }: { onChange?: (d: Date | undefined) => void }) => {
   const [date, setDate] = React.useState<Date | undefined>()

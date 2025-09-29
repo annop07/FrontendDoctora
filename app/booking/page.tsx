@@ -3,6 +3,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react"; 
+import { Slot } from "@radix-ui/react-slot"
 import Schedule from "@/components/Schedule";
 import UploadBox from "@/components/UploadBox";
 import { bookingAction } from "@/utils/action";

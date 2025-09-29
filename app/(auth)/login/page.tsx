@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Banner from "@/components/Banner";
 import Footer from "@/components/Footer";
-import { AuthService } from "@/lib/auth-service";
+import { useAuth } from "@/context/auth-context";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -14,6 +14,20 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+  const { login, isAuthenticated, user, isLoading: authLoading } = useAuth();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && user) {
+      if (user.role === 'ADMIN') {
+        router.replace('/admin');
+      } else if (user.role === 'DOCTOR') {
+        router.replace('/dashboard');
+      } else {
+        router.replace('/');
+      }
+    }
+  }, [isAuthenticated, user, router, authLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,34 +35,16 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const response = await AuthService.login({ email, password });
+      const userData = await login(email, password);
       
-      // Store JWT token
-      AuthService.setToken(response.token);
-      
-      // Store user data - handle null names
-      const userData = {
-        id: response.id,
-        email: response.email,
-        firstName: response.firstName,
-        lastName: response.lastName,
-        role: response.role
-      };
-      localStorage.setItem('user', JSON.stringify(userData));
-      
-      // Redirect based on role
-      if (response.role === 'ADMIN') {
-        router.push('/admin');
-      } else if (response.role === 'DOCTOR') {
-        router.push('/dashboard');
+      // Redirect based on role using replace to prevent back navigation to login
+      if (userData.role === 'ADMIN') {
+        router.replace('/admin');
+      } else if (userData.role === 'DOCTOR') {
+        router.replace('/dashboard');
       } else {
-        router.push('/');
+        router.replace('/');
       }
-      
-      // Refresh page to update navbar
-      setTimeout(() => {
-        window.location.reload();
-      }, 100);
       
     } catch (error) {
       setError(error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
@@ -56,6 +52,24 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <main className="max-w-6xl mx-auto px-6 py-6">
+          <div className="flex justify-center items-center min-h-96">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
+              <p className="text-emerald-700 font-medium">กำลังตรวจสอบสถานะ...</p>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
