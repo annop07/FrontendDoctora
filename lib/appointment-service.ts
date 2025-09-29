@@ -1,0 +1,252 @@
+import { AuthService } from "./auth-service";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082';
+
+export interface CreateAppointmentWithPatientInfoRequest {
+  // Appointment basic info
+  doctorId: number;
+  appointmentDateTime: string; // ISO string
+  durationMinutes?: number;
+  notes?: string;
+
+  // Patient detailed info
+  patientPrefix?: string;
+  patientFirstName: string;
+  patientLastName: string;
+  patientGender: string;
+  patientDateOfBirth: string; // YYYY-MM-DD format
+  patientNationality: string;
+  patientCitizenId?: string;
+  patientPhone: string;
+  patientEmail: string;
+
+  // Additional booking info
+  symptoms?: string;
+  bookingType?: string; // 'auto' or 'manual'
+  queueNumber?: string;
+}
+
+export interface AppointmentResponse {
+  id: number;
+  doctor: {
+    id: number;
+    doctorName: string;
+    specialty: {
+      id: number;
+      name: string;
+    };
+  };
+  patient: {
+    id: number;
+    email: string;
+    firstName: string;
+    lastName: string;
+  };
+  appointmentDatetime: string;
+  durationMinutes: number;
+  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
+  notes: string;
+  doctorNotes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PatientBookingInfoResponse {
+  id: number;
+  queueNumber: string;
+  patientFullName: string;
+  bookingType: string;
+  symptoms: string;
+}
+
+export interface CreateAppointmentResponse {
+  message: string;
+  appointment: AppointmentResponse;
+  patientInfo: PatientBookingInfoResponse;
+}
+
+export class AppointmentService {
+  private static getAuthHeaders() {
+    const token = AuthService.getToken();
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+  }
+
+  /**
+   * Create appointment with complete patient information
+   */
+  static async createAppointmentWithPatientInfo(
+    data: CreateAppointmentWithPatientInfoRequest
+  ): Promise<CreateAppointmentResponse> {
+    console.log('Creating appointment with patient info:', data);
+
+    const response = await fetch(`${API_BASE_URL}/api/appointments/with-patient-info`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP Error: ${response.status} ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        console.error('Appointment creation failed:', errorData);
+        errorMessage = errorData.message || errorData.error || errorMessage;
+      } catch (e) {
+        // If response is not JSON, use the HTTP status
+        console.error('Non-JSON error response:', response.status, response.statusText);
+      }
+      throw new Error(errorMessage);
+    }
+
+    const result = await response.json();
+    console.log('Appointment created successfully:', result);
+    return result;
+  }
+
+  /**
+   * Get my appointments
+   */
+  static async getMyAppointments(): Promise<{appointments: AppointmentResponse[]}> {
+    const response = await fetch(`${API_BASE_URL}/api/appointments/my`, {
+      headers: this.getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch appointments');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Cancel appointment
+   */
+  static async cancelAppointment(appointmentId: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/appointments/${appointmentId}/cancel`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to cancel appointment');
+    }
+  }
+
+  /**
+   * Get doctors by specialty
+   */
+  static async getDoctorsBySpecialty(specialtyName: string) {
+    const response = await fetch(
+      `${API_BASE_URL}/api/doctors/by-specialty?specialty=${encodeURIComponent(specialtyName)}`
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch doctors');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get all doctors
+   */
+  static async getAllDoctors() {
+    const response = await fetch(`${API_BASE_URL}/api/doctors`);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch doctors');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Convert booking draft data to API request format
+   */
+  static convertBookingDataToRequest(
+    bookingData: any,
+    patientData: any,
+    doctorId: number
+  ): CreateAppointmentWithPatientInfoRequest {
+    // Parse date and time
+    const appointmentDate = new Date(bookingData.selectedDate);
+    const timeRange = bookingData.selectedTime || "9:00-10:00";
+    const startTime = timeRange.split('-')[0];
+    const [hour, minute] = startTime.split(':').map(Number);
+
+    appointmentDate.setHours(hour, minute, 0, 0);
+
+    return {
+      doctorId: doctorId,
+      appointmentDateTime: appointmentDate.toISOString(),
+      durationMinutes: 30,
+      notes: bookingData.symptoms || bookingData.illness || "",
+
+      // Patient info
+      patientPrefix: patientData.prefix || "",
+      patientFirstName: patientData.firstName || "",
+      patientLastName: patientData.lastName || "",
+      patientGender: patientData.gender || "",
+      patientDateOfBirth: patientData.dob || "",
+      patientNationality: patientData.nationality || "",
+      patientCitizenId: patientData.citizenId || "",
+      patientPhone: patientData.phone || "",
+      patientEmail: patientData.email || "",
+
+      // Additional info
+      symptoms: bookingData.symptoms || bookingData.illness || "",
+      bookingType: bookingData.illness === 'auto' ? 'auto' : 'manual',
+    };
+  }
+
+  /**
+   * Helper: Format appointment datetime for display
+   */
+  static formatAppointmentDateTime(datetime: string): { date: string; time: string } {
+    const dt = new Date(datetime);
+    const date = dt.toLocaleDateString('th-TH');
+    const time = dt.toLocaleTimeString('th-TH', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+
+    return { date, time };
+  }
+
+  /**
+   * Helper: Get status color
+   */
+  static getStatusColor(status: string): string {
+    const colors: Record<string, string> = {
+      'PENDING': 'text-yellow-600 bg-yellow-50',
+      'CONFIRMED': 'text-green-600 bg-green-50',
+      'CANCELLED': 'text-red-600 bg-red-50',
+      'COMPLETED': 'text-blue-600 bg-blue-50',
+    };
+    return colors[status] || 'text-gray-600 bg-gray-50';
+  }
+
+  /**
+   * Helper: Get status text in Thai
+   */
+  static getStatusText(status: string): string {
+    const statusMap: Record<string, string> = {
+      'PENDING': 'รอการยืนยัน',
+      'CONFIRMED': 'ยืนยันแล้ว',
+      'CANCELLED': 'ยกเลิกแล้ว',
+      'COMPLETED': 'เสร็จสิ้น',
+    };
+    return statusMap[status] || status;
+  }
+}

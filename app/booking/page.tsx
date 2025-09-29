@@ -8,10 +8,24 @@ import Schedule from "@/components/Schedule";
 import UploadBox from "@/components/UploadBox";
 import { bookingAction } from "@/utils/action";
 import { useRouter } from "next/navigation";
-import { Clock, Calendar, FileText, Upload, ArrowLeft, ArrowRight, Stethoscope } from "lucide-react";
+import { Clock, Calendar, FileText, Upload, ArrowLeft, ArrowRight, Stethoscope, User } from "lucide-react";
 
 const DRAFT_KEY = "bookingDraft";
 
+
+// Doctor interface
+interface Doctor {
+  id: number;
+  doctorName: string;
+  email: string;
+  specialty: { id: number; name: string };
+  licenseNumber: string;
+  experienceYears: number;
+  consultationFee: number;
+  roomNumber: string;
+  isActive: boolean;
+  bio?: string;
+}
 
 export default function BookingPage() {
   const searchParams = useSearchParams();
@@ -19,6 +33,8 @@ export default function BookingPage() {
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [illness,setIllness] = useState("");
+  const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
+  const [isLoadingDoctor, setIsLoadingDoctor] = useState(false);
 
   //เก็บstateตอนกดกลับจากหน้า patientForm
   const selectionParam = searchParams.get("selection");
@@ -37,6 +53,41 @@ export default function BookingPage() {
       setIllness(selectionParam);
     }
   }, [depart, selectedTime, selectedDate, illness, selectionParam]);
+
+  // Auto select doctor when illness is 'auto'
+  useEffect(() => {
+    const autoSelectDoctor = async () => {
+      if (illness === 'auto' && depart && !selectedDoctor && !isLoadingDoctor) {
+        setIsLoadingDoctor(true);
+        try {
+          const response = await fetch(`http://localhost:8082/api/doctors/by-specialty?specialty=${encodeURIComponent(depart)}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.doctors && data.doctors.length > 0) {
+              // เลือกแพทย์ตัวแรก
+              const doctor = data.doctors[0];
+              setSelectedDoctor(doctor);
+
+              // บันทึกลง sessionStorage
+              const existingRaw = sessionStorage.getItem(DRAFT_KEY);
+              const existing = existingRaw ? JSON.parse(existingRaw) : {};
+              sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+                ...existing,
+                selectedDoctor: doctor.doctorName,
+                selectedDoctorId: doctor.id
+              }));
+            }
+          }
+        } catch (error) {
+          console.error('Error auto-selecting doctor:', error);
+        } finally {
+          setIsLoadingDoctor(false);
+        }
+      }
+    };
+
+    autoSelectDoctor();
+  }, [illness, depart, selectedDoctor, isLoadingDoctor]);
 
   useEffect(() => {
     const existingRaw = sessionStorage.getItem(DRAFT_KEY);
@@ -98,6 +149,35 @@ export default function BookingPage() {
           <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
           <p className="font-bold text-lg">แผนก{depart}</p>
         </div>
+
+        {/* Auto Selected Doctor Display */}
+        {illness === 'auto' && (
+          <div className="mt-6">
+            {isLoadingDoctor ? (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md">
+                <div className="flex items-center space-x-3">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                  <p className="text-blue-700 font-medium">กำลังเลือกแพทย์ที่เหมาะสมให้คุณ...</p>
+                </div>
+              </div>
+            ) : selectedDoctor ? (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 max-w-md">
+                <div className="flex items-center space-x-3">
+                  <User className="w-5 h-5 text-green-600" />
+                  <div>
+                    <p className="text-green-700 font-medium">แพทย์ที่ระบบเลือกให้คุณ:</p>
+                    <p className="text-green-800 font-bold">{selectedDoctor.doctorName}</p>
+                    <p className="text-sm text-green-600">ห้อง {selectedDoctor.roomNumber} • ค่าตรวจ {selectedDoctor.consultationFee} บาท</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 max-w-md">
+                <p className="text-amber-700 font-medium">ไม่พบแพทย์ในแผนกนี้ กรุณาเลือกแผนกอื่น</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Main Content */}

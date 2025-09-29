@@ -20,10 +20,27 @@ export async function bookingAction(formData : FormData){
 
     const files = formData.getAll('attachments') as File[];
 
-    console.log('data:',obj);
-    console.log('files:',files.map(f => ({name : f.name, size : f.size})));
+    console.log('Booking data:',obj);
+    console.log('Attached files:',files.map(f => ({name : f.name, size : f.size})));
 
-    
+    // Store booking data in sessionStorage for later use
+    const existingDraft = JSON.parse(
+        typeof window !== 'undefined' ? sessionStorage.getItem('bookingDraft') || '{}' : '{}'
+    );
+
+    const bookingData = {
+        ...existingDraft,
+        symptoms: obj.illness as string,
+        selectedDate: obj.date as string,
+        selectedTime: obj.time as string,
+        attachments: files.map(f => f.name),
+        updatedAt: new Date().toISOString()
+    };
+
+    if (typeof window !== 'undefined') {
+        sessionStorage.setItem('bookingDraft', JSON.stringify(bookingData));
+    }
+
     redirect('/patientForm');
 }
 

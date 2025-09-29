@@ -199,6 +199,7 @@ const DoctorDetailWireframes = () => {
 
     const draft = JSON.parse(sessionStorage.getItem('bookingDraft') || '{}');
     draft.selectedDoctor = doctor.doctorName;
+    draft.selectedDoctorId = doctor.id; // เพิ่ม doctorId
     draft.depart = doctor.specialty.name;
     draft.selectedDate = selectedDate.toISOString();
     draft.selectedTime = selectedTimeSlot;

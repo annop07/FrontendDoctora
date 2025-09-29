@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
+import { AppointmentService } from "@/lib/appointment-service";
+import { useAuth } from "@/context/auth-context";
 import {
   CheckCircle, User, Calendar, Clock, Stethoscope,
   FileCheck, ArrowLeft, Download, Phone, Mail, CreditCard, Globe
@@ -39,14 +41,17 @@ const DRAFT_KEY = "bookingDraft";
 
 export default function ConfirmPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [patient, setPatient] = useState<PatientData>({});
   const [depart, setDepart] = useState("");
   const [illness, setIllness] = useState("");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState("");
   const [doctor, setDoctor] = useState("");
+  const [doctorId, setDoctorId] = useState<number | null>(null);
   const [queue, setQueue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [bookingError, setBookingError] = useState("");
 
   const getNextQueue = () => {
     const lastQueue = parseInt(localStorage.getItem("lastQueue") || "0", 10);
@@ -68,6 +73,7 @@ export default function ConfirmPage() {
     setIllness(illnessValue);
 
     setDoctor(bookingData.selectedDoctor || "");
+    setDoctorId(bookingData.selectedDoctorId || null);
 
     if (bookingData.selectedDate) {
       const d = new Date(bookingData.selectedDate);
@@ -289,36 +295,92 @@ export default function ConfirmPage() {
   };
 
   const handleConfirm = async () => {
-    setIsLoading(true);
+    try {
+      setIsLoading(true);
+      setBookingError("");
 
-    // save booking history by user
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (user.email) {
-      const bookingRecord = {
-        id: Date.now(),
-        queueNumber: queue,
-        patientName: `${patient.prefix} ${patient.firstName} ${patient.lastName}`,
-        doctorName: doctor || "-",
-        department: depart || "-",
-        appointmentType: mapIllnessLabel(illness),
-        date: selectedDate,
-        time: selectedTime,
-        status: "กำลังรอ",
-        statusColor: "text-amber-600 bg-amber-50",
-        createdAt: new Date().toISOString(),
-        userEmail: user.email
-      };
+      // Check authentication
+      if (!user) {
+        setBookingError("กรุณาเข้าสู่ระบบก่อนทำการจอง");
+        return;
+      }
 
-      const historyKey = `bookingHistory_${user.email}`;
-      const existingHistory = JSON.parse(localStorage.getItem(historyKey) || '[]');
-      existingHistory.push(bookingRecord);
-      localStorage.setItem(historyKey, JSON.stringify(existingHistory));
-    }
+      // Validate required data
+      if (!doctorId) {
+        setBookingError("ข้อมูลแพทย์ไม่ครบถ้วน กรุณาเริ่มการจองใหม่");
+        return;
+      }
 
-    await new Promise(resolve => setTimeout(resolve, 100));
-    const success = await exportPDF(queue);
-    if (success) {
-      setTimeout(() => router.push("/finishbooking"), 1000);
+      if (!patient.firstName || !patient.lastName) {
+        setBookingError("ข้อมูลผู้ป่วยไม่ครบถ้วน");
+        return;
+      }
+
+      // Get booking and patient data from sessionStorage
+      const bookingData = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
+      const patientData = JSON.parse(sessionStorage.getItem("patientData") || '{}');
+
+      // Prepare API request
+      const appointmentRequest = AppointmentService.convertBookingDataToRequest(
+        bookingData,
+        patientData,
+        doctorId
+      );
+
+      console.log('Sending appointment request:', appointmentRequest);
+
+      // Call API to create appointment
+      const response = await AppointmentService.createAppointmentWithPatientInfo(appointmentRequest);
+
+      console.log('Appointment created:', response);
+
+      // Update queue number from server response
+      if (response.patientInfo?.queueNumber) {
+        setQueue(response.patientInfo.queueNumber);
+      }
+
+      // Save booking history locally (optional - for offline viewing)
+      if (user.email) {
+        const bookingRecord = {
+          id: response.appointment.id,
+          queueNumber: response.patientInfo?.queueNumber || queue,
+          patientName: `${patient.prefix} ${patient.firstName} ${patient.lastName}`,
+          doctorName: doctor || response.appointment.doctor.doctorName,
+          department: depart || response.appointment.doctor.specialty.name,
+          appointmentType: mapIllnessLabel(illness),
+          date: selectedDate,
+          time: selectedTime,
+          status: AppointmentService.getStatusText(response.appointment.status),
+          statusColor: AppointmentService.getStatusColor(response.appointment.status),
+          createdAt: response.appointment.createdAt,
+          userEmail: user.email,
+          appointmentId: response.appointment.id
+        };
+
+        const historyKey = `bookingHistory_${user.email}`;
+        const existingHistory = JSON.parse(localStorage.getItem(historyKey) || '[]');
+        existingHistory.push(bookingRecord);
+        localStorage.setItem(historyKey, JSON.stringify(existingHistory));
+      }
+
+      // Generate and download PDF
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const success = await exportPDF(response.patientInfo?.queueNumber || queue);
+
+      if (success) {
+        // Clear session data
+        sessionStorage.removeItem(DRAFT_KEY);
+        sessionStorage.removeItem("patientData");
+
+        // Redirect to finish page
+        setTimeout(() => router.push("/finishbooking"), 1000);
+      }
+
+    } catch (error: any) {
+      console.error('Booking error:', error);
+      setBookingError(error.message || "เกิดข้อผิดพลาดในการจอง กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -470,6 +532,13 @@ export default function ConfirmPage() {
                 </div>
               </div>
             </div>
+
+            {/* Error Display */}
+            {bookingError && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+                <p className="text-red-700 text-sm font-medium">{bookingError}</p>
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-emerald-100">
