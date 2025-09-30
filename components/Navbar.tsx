@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { User, History, LogOut, ChevronDown } from 'lucide-react'
+import { User, History, LogOut, ChevronDown, LayoutDashboard, Calendar, Clock, UserCircle, CalendarDays } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { AuthService } from '@/lib/auth-service'
@@ -143,26 +143,62 @@ export default function Navbar(){
                       <span>Admin Panel</span>
                     </Link>
                   )}
-                  
+
                   {user?.role === 'DOCTOR' && (
+                    <>
+                      <Link
+                        href="/doctor-dashboard"
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 transition-colors text-emerald-700"
+                        onClick={() => setShowDropdown(false)}
+                      >
+                        <LayoutDashboard className="w-4 h-4" />
+                        <span>แดชบอร์ด</span>
+                      </Link>
+                      <Link
+                        href="/doctor-appointments"
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 transition-colors text-emerald-700"
+                        onClick={() => setShowDropdown(false)}
+                      >
+                        <Calendar className="w-4 h-4" />
+                        <span>นัดหมายทั้งหมด</span>
+                      </Link>
+                      <Link
+                        href="/doctor-calendar"
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 transition-colors text-emerald-700"
+                        onClick={() => setShowDropdown(false)}
+                      >
+                        <CalendarDays className="w-4 h-4" />
+                        <span>ปฏิทิน</span>
+                      </Link>
+                      <Link
+                        href="/doctor-schedule"
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 transition-colors text-emerald-700"
+                        onClick={() => setShowDropdown(false)}
+                      >
+                        <Clock className="w-4 h-4" />
+                        <span>เวลาทำงาน</span>
+                      </Link>
+                      <Link
+                        href="/doctor-profile"
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 transition-colors text-emerald-700"
+                        onClick={() => setShowDropdown(false)}
+                      >
+                        <UserCircle className="w-4 h-4" />
+                        <span>โปรไฟล์</span>
+                      </Link>
+                    </>
+                  )}
+
+                  {user?.role === 'PATIENT' && (
                     <Link
-                      href="/dashboard"
+                      href="/History"
                       className="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 transition-colors text-emerald-700"
                       onClick={() => setShowDropdown(false)}
                     >
-                      <User className="w-4 h-4" />
-                      <span>Dashboard</span>
+                      <History className="w-4 h-4" />
+                      <span>History</span>
                     </Link>
                   )}
-                  
-                  <Link
-                    href="/History"
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 transition-colors text-emerald-700"
-                    onClick={() => setShowDropdown(false)}
-                  >
-                    <History className="w-4 h-4" />
-                    <span>History</span>
-                  </Link>
                   
                   <button
                     onClick={handleLogout}

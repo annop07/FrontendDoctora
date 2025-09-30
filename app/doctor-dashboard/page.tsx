@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AuthService } from '@/lib/auth-service';
 import { DoctorService, DoctorProfile, DoctorAppointment, DoctorStats } from '@/lib/doctor-service';
-import { AppointmentService } from '@/lib/appointment-service';
+import { AppointmentService, PatientBookingInfoResponse } from '@/lib/appointment-service';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import {
@@ -20,7 +20,10 @@ import {
   DollarSign,
   Award,
   CalendarClock,
-  Check
+  Check,
+  Info,
+  X as CloseIcon,
+  FileText
 } from 'lucide-react';
 
 export default function DoctorDashboard() {
@@ -31,6 +34,10 @@ export default function DoctorDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
+  const [selectedPatientInfo, setSelectedPatientInfo] = useState<PatientBookingInfoResponse | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loadingPatientInfo, setLoadingPatientInfo] = useState(false);
+  const [appointmentFilter, setAppointmentFilter] = useState<'ALL' | 'PENDING' | 'CONFIRMED' | 'CANCELLED'>('ALL');
 
   useEffect(() => {
     // Check if user is logged in and is a doctor
@@ -120,6 +127,32 @@ export default function DoctorDashboard() {
     }
   };
 
+  const handleViewPatientInfo = async (appointmentId: number) => {
+    console.log('🔵 Viewing patient info for appointment:', appointmentId);
+
+    try {
+      setLoadingPatientInfo(true);
+      setError(null);
+
+      const patientInfo = await AppointmentService.getPatientBookingInfo(appointmentId);
+      console.log('✅ Patient info retrieved:', patientInfo);
+
+      setSelectedPatientInfo(patientInfo);
+      setIsModalOpen(true);
+    } catch (err) {
+      console.error('❌ Error fetching patient info:', err);
+      const errorMessage = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการโหลดข้อมูลผู้ป่วย';
+      alert('เกิดข้อผิดพลาด: ' + errorMessage);
+    } finally {
+      setLoadingPatientInfo(false);
+    }
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSelectedPatientInfo(null);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -154,8 +187,42 @@ export default function DoctorDashboard() {
   }
 
   const todayAppointments = appointments ? DoctorService.getTodayAppointments(appointments) : [];
-  const upcomingAppointments = appointments ? DoctorService.getUpcomingAppointments(appointments) : [];
+  const allUpcomingAppointments = appointments ? DoctorService.getUpcomingAppointments(appointments) : [];
+
+  // Filter and sort upcoming appointments based on selected filter
+  let upcomingAppointments = appointmentFilter === 'ALL'
+    ? allUpcomingAppointments
+    : allUpcomingAppointments.filter(apt => apt.status === appointmentFilter);
+
+  // For 'ALL' filter: sort by status (PENDING first, then CONFIRMED, then others) and by date
+  if (appointmentFilter === 'ALL') {
+    upcomingAppointments = [...upcomingAppointments].sort((a, b) => {
+      // Priority: PENDING = 1, CONFIRMED = 2, others = 3
+      const getPriority = (status: string) => {
+        if (status === 'PENDING') return 1;
+        if (status === 'CONFIRMED') return 2;
+        return 3;
+      };
+
+      const priorityDiff = getPriority(a.status) - getPriority(b.status);
+
+      // If same priority, sort by date (nearest first)
+      if (priorityDiff === 0) {
+        return new Date(a.appointmentDatetime).getTime() - new Date(b.appointmentDatetime).getTime();
+      }
+
+      return priorityDiff;
+    });
+  } else {
+    // For other filters, just sort by date (nearest first)
+    upcomingAppointments = [...upcomingAppointments].sort((a, b) =>
+      new Date(a.appointmentDatetime).getTime() - new Date(b.appointmentDatetime).getTime()
+    );
+  }
+
   const pendingAppointments = appointments?.filter(apt => apt.status === 'PENDING') || [];
+  const confirmedCount = allUpcomingAppointments.filter(apt => apt.status === 'CONFIRMED').length;
+  const cancelledCount = allUpcomingAppointments.filter(apt => apt.status === 'CANCELLED').length;
 
   // Generate time slots for today's schedule (8:00 AM - 5:00 PM)
   const generateTimeSlots = () => {
@@ -193,7 +260,7 @@ export default function DoctorDashboard() {
               </div>
               <div>
                 <h1 className="text-2xl font-semibold text-gray-800">แดชบอร์ดแพทย์</h1>
-                <p className="text-gray-600 text-sm">ยินดีต้อนรับ, {profile?.fullName}</p>
+                <p className="text-gray-600 text-sm">ยินดีต้อนรับ, {profile?.doctorName}</p>
               </div>
             </div>
             <button
@@ -268,7 +335,7 @@ export default function DoctorDashboard() {
                 <div className="space-y-4">
                   <div>
                     <p className="text-xs text-gray-500 mb-1">ชื่อ-นามสกุล</p>
-                    <p className="font-medium text-gray-800">{profile.fullName}</p>
+                    <p className="font-medium text-gray-800">{profile.doctorName}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 mb-1">อีเมล</p>
@@ -316,6 +383,50 @@ export default function DoctorDashboard() {
                 นัดหมายที่จะมาถึง
               </h2>
 
+              {/* Filter Tabs */}
+              <div className="flex gap-2 mb-4 border-b border-gray-200">
+                <button
+                  onClick={() => setAppointmentFilter('ALL')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                    appointmentFilter === 'ALL'
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  ทั้งหมด ({allUpcomingAppointments.length})
+                </button>
+                <button
+                  onClick={() => setAppointmentFilter('PENDING')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                    appointmentFilter === 'PENDING'
+                      ? 'border-yellow-600 text-yellow-600'
+                      : 'border-transparent text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  รอการยืนยัน ({pendingAppointments.length})
+                </button>
+                <button
+                  onClick={() => setAppointmentFilter('CONFIRMED')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                    appointmentFilter === 'CONFIRMED'
+                      ? 'border-green-600 text-green-600'
+                      : 'border-transparent text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  ยืนยันแล้ว ({confirmedCount})
+                </button>
+                <button
+                  onClick={() => setAppointmentFilter('CANCELLED')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+                    appointmentFilter === 'CANCELLED'
+                      ? 'border-red-600 text-red-600'
+                      : 'border-transparent text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  ยกเลิก ({cancelledCount})
+                </button>
+              </div>
+
               {upcomingAppointments.length === 0 ? (
                 <div className="text-center py-12">
                   <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -339,12 +450,21 @@ export default function DoctorDashboard() {
                               <div className="bg-blue-100 w-9 h-9 rounded-full flex items-center justify-center text-blue-700 font-medium text-sm">
                                 {appointment.patient.firstName.charAt(0)}
                               </div>
-                              <div>
+                              <div className="flex-1">
                                 <p className="font-medium text-gray-800">
                                   {appointment.patient.firstName} {appointment.patient.lastName}
                                 </p>
                                 <p className="text-xs text-gray-500">{appointment.patient.email}</p>
                               </div>
+                              <button
+                                onClick={() => handleViewPatientInfo(appointment.id)}
+                                disabled={loadingPatientInfo}
+                                className="px-3 py-1.5 text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                                title="ดูข้อมูลผู้ป่วย"
+                              >
+                                <Info className="w-3.5 h-3.5" />
+                                ข้อมูลผู้ป่วย
+                              </button>
                             </div>
                             <div className="flex flex-wrap items-center gap-2 mt-3">
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 text-gray-700 rounded text-xs">
@@ -500,7 +620,147 @@ export default function DoctorDashboard() {
         </div>
       </div>
 
-      
+      {/* Patient Info Modal */}
+      {isModalOpen && selectedPatientInfo && (
+        <div
+          className="fixed inset-0 bg-black/30 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"
+          onClick={closeModal}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Scrollable Content */}
+            <div className="overflow-y-auto max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between z-10">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-gray-600" />
+                ข้อมูลผู้ป่วย
+              </h2>
+              <button
+                onClick={closeModal}
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                title="ปิด"
+              >
+                <CloseIcon className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5">
+              {/* Queue Number */}
+              <div className="border-2 border-blue-500 rounded-lg p-5 text-center bg-blue-50/50">
+                <p className="text-xs text-gray-600 mb-1">หมายเลขคิว</p>
+                <p className="text-4xl font-bold text-blue-600">{selectedPatientInfo.queueNumber}</p>
+              </div>
+
+              {/* Personal Information */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">ข้อมูลส่วนตัว</h3>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                  <div>
+                    <label className="text-xs text-gray-500">คำนำหน้า</label>
+                    <p className="text-sm font-medium text-gray-900">{selectedPatientInfo.patientPrefix || '-'}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">ชื่อ-นามสกุล</label>
+                    <p className="text-sm font-medium text-gray-900">{selectedPatientInfo.patientFullName}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">เพศ</label>
+                    <p className="text-sm font-medium text-gray-900">
+                      {selectedPatientInfo.patientGender === 'male' ? 'ชาย' :
+                       selectedPatientInfo.patientGender === 'female' ? 'หญิง' :
+                       selectedPatientInfo.patientGender}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">วันเกิด</label>
+                    <p className="text-sm font-medium text-gray-900">
+                      {new Date(selectedPatientInfo.patientDateOfBirth).toLocaleDateString('th-TH', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">สัญชาติ</label>
+                    <p className="text-sm font-medium text-gray-900">{selectedPatientInfo.patientNationality}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">เลขบัตรประชาชน</label>
+                    <p className="text-sm font-medium text-gray-900">{selectedPatientInfo.patientCitizenId || '-'}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200"></div>
+
+              {/* Contact Information */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">ข้อมูลติดต่อ</h3>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                  <div>
+                    <label className="text-xs text-gray-500">เบอร์โทรศัพท์</label>
+                    <p className="text-sm font-medium text-gray-900">{selectedPatientInfo.patientPhone}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">อีเมล</label>
+                    <p className="text-sm font-medium text-gray-900 break-all">{selectedPatientInfo.patientEmail}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200"></div>
+
+              {/* Symptoms */}
+              {selectedPatientInfo.symptoms && (
+                <>
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-3">อาการ</h3>
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{selectedPatientInfo.symptoms}</p>
+                    </div>
+                  </div>
+                  <div className="border-t border-gray-200"></div>
+                </>
+              )}
+
+              {/* Booking Information */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">ข้อมูลการจอง</h3>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                  <div>
+                    <label className="text-xs text-gray-500">ประเภทการจอง</label>
+                    <p className="text-sm font-medium text-gray-900">
+                      {selectedPatientInfo.bookingType === 'auto' ? 'จองอัตโนมัติ' : 'เลือกหมอเอง'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">เวลาที่จอง</label>
+                    <p className="text-sm font-medium text-gray-900">
+                      {new Date(selectedPatientInfo.createdAt).toLocaleString('th-TH')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
+              <button
+                onClick={closeModal}
+                className="w-full px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+              >
+                ปิด
+              </button>
+            </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>

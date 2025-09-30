@@ -4,24 +4,20 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8
 
 export interface DoctorProfile {
   id: number;
+  doctorName: string;
+  email: string;
   licenseNumber: string;
   bio: string;
   experienceYears: number;
   consultationFee: number;
   roomNumber: string;
   isActive: boolean;
-  firstName: string;
-  lastName: string;
-  email: string;
   phone: string;
-  fullName: string;
   specialty: {
     id: number;
     name: string;
-    description: string;
   };
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface DoctorAppointment {
@@ -72,14 +68,14 @@ export class DoctorService {
    * Get current doctor's profile
    */
   static async getMyProfile(): Promise<DoctorProfile> {
-    const response = await fetch(`${API_BASE_URL}/api/doctors/me`, {
+    const response = await fetch(`${API_BASE_URL}/api/doctors/profile/my`, {
       method: 'GET',
       headers: this.getAuthHeaders(),
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to fetch doctor profile');
+      throw new Error(errorData.message || errorData.error || 'Failed to fetch doctor profile');
     }
 
     return response.json();
@@ -89,15 +85,12 @@ export class DoctorService {
    * Update current doctor's profile
    */
   static async updateMyProfile(profileData: {
-    firstName?: string;
-    lastName?: string;
-    phone?: string;
     bio?: string;
     experienceYears?: number;
     consultationFee?: number;
     roomNumber?: string;
-  }): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/doctors/me`, {
+  }): Promise<{ message: string; doctor: DoctorProfile }> {
+    const response = await fetch(`${API_BASE_URL}/api/doctors/profile/my`, {
       method: 'PUT',
       headers: this.getAuthHeaders(),
       body: JSON.stringify(profileData),
@@ -105,8 +98,10 @@ export class DoctorService {
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.message || 'Failed to update doctor profile');
+      throw new Error(errorData.message || errorData.error || 'Failed to update doctor profile');
     }
+
+    return response.json();
   }
 
   /**

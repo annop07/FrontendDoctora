@@ -54,9 +54,19 @@ export interface AppointmentResponse {
 export interface PatientBookingInfoResponse {
   id: number;
   queueNumber: string;
+  patientPrefix?: string;
+  patientFirstName: string;
+  patientLastName: string;
   patientFullName: string;
+  patientGender: string;
+  patientDateOfBirth: string; // YYYY-MM-DD
+  patientNationality: string;
+  patientCitizenId?: string;
+  patientPhone: string;
+  patientEmail: string;
+  symptoms?: string;
   bookingType: string;
-  symptoms: string;
+  createdAt: string;
 }
 
 export interface CreateAppointmentResponse {
@@ -162,6 +172,36 @@ export class AppointmentService {
 
   static getToken(): string | null {
     return AuthService.getToken();
+  }
+
+  /**
+   * Get patient booking info for an appointment (Doctor only)
+   */
+  static async getPatientBookingInfo(appointmentId: number): Promise<PatientBookingInfoResponse> {
+    console.log('🔵 [getPatientBookingInfo] Fetching for appointment ID:', appointmentId);
+
+    const response = await fetch(`${API_BASE_URL}/api/appointments/${appointmentId}/patient-info`, {
+      headers: this.getAuthHeaders(),
+    });
+
+    console.log('🔵 [getPatientBookingInfo] Response status:', response.status);
+
+    if (!response.ok) {
+      const responseText = await response.text();
+      console.error('❌ [getPatientBookingInfo] Error:', responseText);
+
+      let errorData;
+      try {
+        errorData = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error(`HTTP ${response.status}: ${responseText || response.statusText}`);
+      }
+      throw new Error(errorData.message || 'Failed to fetch patient booking info');
+    }
+
+    const result = await response.json();
+    console.log('✅ [getPatientBookingInfo] Success:', result);
+    return result;
   }
 
   /**
