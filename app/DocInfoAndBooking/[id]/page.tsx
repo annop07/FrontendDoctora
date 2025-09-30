@@ -1,7 +1,7 @@
 'use client';
 import { useParams } from "next/navigation";
 import React, { useState, useEffect } from 'react';
-import { Calendar, User, GraduationCap, Languages, Clock, ArrowLeft, ArrowRight, Stethoscope, Building, Heart } from 'lucide-react';
+import { Calendar, User, Clock, ArrowLeft, ArrowRight, Stethoscope, Building, Heart } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useRouter } from "next/navigation";
@@ -32,6 +32,18 @@ interface Doctor {
   bio?: string;
 }
 
+interface AvailabilitySlot {
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+}
+
+interface DayAvailability {
+  dayOfWeek: number;
+  dayName: string;
+  slots: AvailabilitySlot[];
+}
+
 // ===================== API Service =====================
 class DoctorApiService {
   private baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082';
@@ -41,6 +53,16 @@ class DoctorApiService {
     
     if (!response.ok) {
       throw new Error(`Failed to fetch doctor: ${response.status}`);
+    }
+    
+    return response.json();
+  }
+
+  async getDoctorAvailability(doctorId: number): Promise<{ schedule: DayAvailability[] }> {
+    const response = await fetch(`${this.baseUrl}/api/availabilities/doctor/${doctorId}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch availability: ${response.status}`);
     }
     
     return response.json();
@@ -55,7 +77,7 @@ function sameYMD(a: Date, b: Date) {
 function getStartOfWeek(date: Date) {
   const d = new Date(date);
   const day = d.getDay(); // 0=Sun
-  const diff = d.getDate() - day; // start Sunday
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Start Monday
   return new Date(d.setDate(diff));
 }
 
@@ -69,6 +91,38 @@ function getWeekDates(startDate: Date) {
   return dates;
 }
 
+// Generate 30-minute time slots from availability periods
+function generateTimeSlotsFromAvailability(slots: AvailabilitySlot[]): TimeSlot[] {
+  const timeSlots: TimeSlot[] = [];
+  
+  slots.forEach(slot => {
+    const [startHour, startMin] = slot.startTime.split(':').map(Number);
+    const [endHour, endMin] = slot.endTime.split(':').map(Number);
+    
+    let currentHour = startHour;
+    let currentMin = startMin;
+    
+    while (currentHour < endHour || (currentHour === endHour && currentMin < endMin)) {
+      const nextMin = currentMin + 30;
+      const nextHour = currentHour + Math.floor(nextMin / 60);
+      const actualNextMin = nextMin % 60;
+      
+      if (nextHour < endHour || (nextHour === endHour && actualNextMin <= endMin)) {
+        const timeString = `${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')}-${String(nextHour).padStart(2, '0')}:${String(actualNextMin).padStart(2, '0')}`;
+        timeSlots.push({
+          time: timeString,
+          available: slot.isActive
+        });
+      }
+      
+      currentMin = actualNextMin;
+      currentHour = nextHour;
+    }
+  });
+  
+  return timeSlots;
+}
+
 const DoctorDetailWireframes = () => {
   const router = useRouter();
   const params = useParams();
@@ -76,6 +130,7 @@ const DoctorDetailWireframes = () => {
 
   // States
   const [doctor, setDoctor] = useState<Doctor | null>(null);
+  const [availability, setAvailability] = useState<DayAvailability[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -84,60 +139,52 @@ const DoctorDetailWireframes = () => {
 
   const apiService = new DoctorApiService();
 
-  // Load doctor data from backend
+  // Load doctor data and availability from backend
   useEffect(() => {
-    const loadDoctor = async () => {
+    const loadData = async () => {
       try {
         setLoading(true);
+        setError('');
+        
+        // Load doctor info
         const doctorData = await apiService.getDoctorById(routeId);
         setDoctor(doctorData);
+        
+        // Load availability schedule
+        const availabilityData = await apiService.getDoctorAvailability(routeId);
+        setAvailability(availabilityData.schedule);
+        
       } catch (error) {
-        console.error('Failed to load doctor:', error);
-        setError(error instanceof Error ? error.message : 'Failed to load doctor data');
+        console.error('Failed to load data:', error);
+        setError(error instanceof Error ? error.message : 'Failed to load data');
       } finally {
         setLoading(false);
       }
     };
 
-    loadDoctor();
+    loadData();
   }, [routeId]);
 
-  // Mock schedule generation (this would come from backend in real implementation)
-  const BASE_SLOTS = [
-    "09:00-10:00", "10:00-11:00", "13:00-14:00", "14:00-15:00", "15:00-16:00"
-  ];
-
-  const generateScheduleForDoctor = (doctorId: number, weekDates: Date[]) => {
-    const getSeedForDate = (doctorId: number, date: Date) => {
-      const dateString = date.toISOString().split('T')[0];
-      let hash = 0;
-      const str = `${doctorId}-${dateString}`;
-      for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash;
-      }
-      return Math.abs(hash) % 100;
-    };
-
+  // Generate schedule for current week based on real availability
+  const generateScheduleForWeek = (weekDates: Date[]): DaySchedule[] => {
     return weekDates.map((dateObj) => {
-      const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
-      const seed = getSeedForDate(doctorId, dateObj);
+      const jsDay = dateObj.getDay(); // 0=Sunday, 1=Monday, etc.
+      const isoDay = jsDay === 0 ? 7 : jsDay; // Convert to ISO (1=Monday, 7=Sunday)
+      
+      const dayAvail = availability.find(a => a.dayOfWeek === isoDay);
+      const slots = dayAvail ? generateTimeSlotsFromAvailability(dayAvail.slots) : [];
       
       return {
         day: dateObj.toLocaleDateString('th-TH', { weekday: 'short' }),
         dayFull: dateObj.toLocaleDateString('th-TH', { weekday: 'long' }),
         dateObj,
-        slots: BASE_SLOTS.map((time, i) => ({
-          time,
-          available: isWeekend ? (seed + i) % 4 !== 0 : (seed + i) % 3 !== 0,
-        }))
+        slots
       };
     });
   };
 
   const getCurrentWeekDates = () => getWeekDates(viewStart);
-  const mockWeeklySchedule = doctor ? generateScheduleForDoctor(doctor.id, getCurrentWeekDates()) : [];
+  const weeklySchedule = generateScheduleForWeek(getCurrentWeekDates());
 
   // Handle date change
   const handleDateChange = (dateString: string) => {
@@ -195,20 +242,19 @@ const DoctorDetailWireframes = () => {
 
   // Booking confirmation
   const handleBookingConfirm = () => {
-  if (!selectedTimeSlot || !doctor) return;
+    if (!selectedTimeSlot || !doctor) return;
 
-  const draft = JSON.parse(sessionStorage.getItem('bookingDraft') || '{}');
-  
-  // Store the doctor ID and other booking info
-  draft.doctorId = doctor.id;
-  draft.selectedDoctor = doctor.doctorName;
-  draft.depart = doctor.specialty.name;
-  draft.selectedDate = selectedDate.toISOString();
-  draft.selectedTime = selectedTimeSlot
-  
-  sessionStorage.setItem('bookingDraft', JSON.stringify(draft));
+    const draft = JSON.parse(sessionStorage.getItem('bookingDraft') || '{}');
+    
+    draft.doctorId = doctor.id;
+    draft.selectedDoctor = doctor.doctorName;
+    draft.depart = doctor.specialty.name;
+    draft.selectedDate = selectedDate.toISOString();
+    draft.selectedTime = selectedTimeSlot;
+    
+    sessionStorage.setItem('bookingDraft', JSON.stringify(draft));
 
-  router.push('/patientForm');
+    router.push('/patientForm');
   };
 
   // Scroll to booking section when hash is present
@@ -229,16 +275,6 @@ const DoctorDetailWireframes = () => {
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
         <Navbar />
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <div className="p-3 bg-emerald-100 rounded-full">
-                <Stethoscope className="h-8 w-8 text-emerald-600" />
-              </div>
-            </div>
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
-              ข้อมูลแพทย์และการจองนัด
-            </h1>
-          </div>
           <div className="flex justify-center items-center min-h-96">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
@@ -257,16 +293,6 @@ const DoctorDetailWireframes = () => {
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
         <Navbar />
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <div className="p-3 bg-emerald-100 rounded-full">
-                <Stethoscope className="h-8 w-8 text-emerald-600" />
-              </div>
-            </div>
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
-              ข้อมูลแพทย์และการจองนัด
-            </h1>
-          </div>
           <div className="text-center">
             <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
               <h3 className="text-red-800 font-medium mb-2">เกิดข้อผิดพลาด</h3>
@@ -427,8 +453,8 @@ const DoctorDetailWireframes = () => {
                 <div className="flex items-center gap-3">
                   <Clock className="w-6 h-6 text-emerald-600" />
                   <h3 className="text-xl font-bold text-gray-900">ตารางเวลาตรวจ</h3>
-                  <span className="text-sm text-amber-600 bg-amber-50 px-2 py-1 rounded">
-                    (Mock Data - จะเชื่อม Backend ในอนาคต)
+                  <span className="text-sm text-green-600 bg-green-50 px-2 py-1 rounded">
+                    ✓ จากระบบ Backend
                   </span>
                 </div>
                 
@@ -465,7 +491,7 @@ const DoctorDetailWireframes = () => {
               {/* Schedule Table */}
               <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-6 border border-emerald-100">
                 <div className="grid grid-cols-7 gap-3">
-                  {mockWeeklySchedule.map((dayData: DaySchedule, index: number) => {
+                  {weeklySchedule.map((dayData: DaySchedule, index: number) => {
                     const isSelected = sameYMD(dayData.dateObj, selectedDate);
                     const isToday = sameYMD(dayData.dateObj, new Date());
                     const isPastDate = dayData.dateObj < new Date(new Date().setHours(0, 0, 0, 0));
@@ -556,12 +582,13 @@ const DoctorDetailWireframes = () => {
         </div>
 
         {/* Backend Integration Status */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="text-blue-800 font-medium mb-2">🔗 Backend Integration Status</h4>
-          <div className="text-sm text-blue-700 space-y-1">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <h4 className="text-green-800 font-medium mb-2">✅ Real Backend Integration</h4>
+          <div className="text-sm text-green-700 space-y-1">
             <p>✅ <strong>Connected:</strong> Doctor profile data from backend API</p>
-            <p>⏳ <strong>Mock Data:</strong> Schedule/availability data (requires backend implementation)</p>
-            <p>📝 <strong>Next Steps:</strong> Implement availability API endpoints in Spring Boot</p>
+            <p>✅ <strong>Connected:</strong> Availability schedule from backend (availabilities table)</p>
+            <p>✅ <strong>Real Data:</strong> Time slots generated from doctor's actual schedule in database</p>
+            <p>📊 <strong>Current Schedule:</strong> {availability.filter(a => a.slots.length > 0).length} days with availability</p>
           </div>
         </div>
       </div>
