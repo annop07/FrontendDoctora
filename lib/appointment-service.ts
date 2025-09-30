@@ -126,6 +126,45 @@ export class AppointmentService {
   }
 
   /**
+   * Confirm appointment (Doctor only)
+   */
+  static async confirmAppointment(appointmentId: number): Promise<AppointmentResponse> {
+    console.log('🔵 [confirmAppointment] Starting with ID:', appointmentId);
+    console.log('🔵 [confirmAppointment] Token:', this.getToken());
+    console.log('🔵 [confirmAppointment] URL:', `${API_BASE_URL}/api/appointments/${appointmentId}/confirm`);
+
+    const response = await fetch(`${API_BASE_URL}/api/appointments/${appointmentId}/confirm`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(),
+    });
+
+    console.log('🔵 [confirmAppointment] Response status:', response.status);
+    console.log('🔵 [confirmAppointment] Response headers:', Object.fromEntries(response.headers.entries()));
+
+    if (!response.ok) {
+      console.error('❌ [confirmAppointment] Response not OK');
+      const responseText = await response.text();
+      console.error('❌ [confirmAppointment] Response text:', responseText);
+
+      let errorData;
+      try {
+        errorData = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error(`HTTP ${response.status}: ${responseText || response.statusText}`);
+      }
+      throw new Error(errorData.message || 'Failed to confirm appointment');
+    }
+
+    const result = await response.json();
+    console.log('✅ [confirmAppointment] Success:', result);
+    return result.appointment;
+  }
+
+  static getToken(): string | null {
+    return AuthService.getToken();
+  }
+
+  /**
    * Cancel appointment
    */
   static async cancelAppointment(appointmentId: number): Promise<void> {
@@ -138,6 +177,22 @@ export class AppointmentService {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to cancel appointment');
     }
+  }
+
+  /**
+   * Get doctor's appointments (Doctor only)
+   */
+  static async getDoctorAppointments(): Promise<{appointments: AppointmentResponse[]}> {
+    const response = await fetch(`${API_BASE_URL}/api/appointments/doctor/my`, {
+      headers: this.getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch appointments');
+    }
+
+    return response.json();
   }
 
   /**

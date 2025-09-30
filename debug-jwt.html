@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JWT Token Debugger</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        h1 { color: #4ec9b0; }
+        textarea {
+            width: 100%;
+            height: 150px;
+            background: #252526;
+            color: #d4d4d4;
+            border: 1px solid #3e3e42;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+        }
+        button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover { background: #1177bb; }
+        pre {
+            background: #252526;
+            padding: 15px;
+            border-left: 3px solid #4ec9b0;
+            overflow-x: auto;
+        }
+        .error { color: #f48771; }
+        .success { color: #4ec9b0; }
+    </style>
+</head>
+<body>
+    <h1>🔍 JWT Token Debugger</h1>
+    <p>Paste your JWT token from localStorage below:</p>
+
+    <textarea id="tokenInput" placeholder="Paste JWT token here..."></textarea>
+    <button onclick="decodeToken()">Decode Token</button>
+    <button onclick="getFromLocalStorage()">Get from localStorage</button>
+
+    <h2>Decoded Payload:</h2>
+    <pre id="output">No token decoded yet...</pre>
+
+    <script>
+        function getFromLocalStorage() {
+            const token = localStorage.getItem('authToken');
+            if (token) {
+                document.getElementById('tokenInput').value = token;
+                decodeToken();
+            } else {
+                document.getElementById('output').innerHTML = '<span class="error">❌ No token found in localStorage!</span>';
+            }
+        }
+
+        function decodeToken() {
+            const token = document.getElementById('tokenInput').value.trim();
+            const output = document.getElementById('output');
+
+            if (!token) {
+                output.innerHTML = '<span class="error">❌ Please paste a token first!</span>';
+                return;
+            }
+
+            try {
+                // JWT has 3 parts: header.payload.signature
+                const parts = token.split('.');
+                if (parts.length !== 3) {
+                    throw new Error('Invalid JWT format');
+                }
+
+                // Decode payload (second part)
+                const payload = JSON.parse(atob(parts[1]));
+
+                // Format nicely
+                let result = '<span class="success">✅ Token decoded successfully!</span>\n\n';
+                result += '<strong>Full Payload:</strong>\n';
+                result += JSON.stringify(payload, null, 2);
+                result += '\n\n<strong>Key Information:</strong>\n';
+                result += '👤 Email: ' + (payload.sub || 'N/A') + '\n';
+                result += '🎭 Role: ' + (payload.role || 'N/A') + '\n';
+                result += '🆔 User ID: ' + (payload.userId || 'N/A') + '\n';
+                result += '👨 First Name: ' + (payload.firstName || 'N/A') + '\n';
+                result += '👨 Last Name: ' + (payload.lastName || 'N/A') + '\n';
+
+                if (payload.iat) {
+                    result += '📅 Issued At: ' + new Date(payload.iat * 1000).toLocaleString() + '\n';
+                }
+                if (payload.exp) {
+                    const expDate = new Date(payload.exp * 1000);
+                    const isExpired = expDate < new Date();
+                    result += '⏰ Expires At: ' + expDate.toLocaleString();
+                    result += isExpired ? ' <span class="error">(EXPIRED!)</span>' : ' <span class="success">(Valid)</span>';
+                    result += '\n';
+                }
+
+                output.innerHTML = result;
+            } catch (e) {
+                output.innerHTML = '<span class="error">❌ Error decoding token:\n' + e.message + '</span>';
+            }
+        }
+
+        // Auto-load on page load
+        window.onload = function() {
+            getFromLocalStorage();
+        };
+    </script>
+</body>
+</html>

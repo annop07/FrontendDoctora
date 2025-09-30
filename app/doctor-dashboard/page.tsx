@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AuthService } from '@/lib/auth-service';
 import { DoctorService, DoctorProfile, DoctorAppointment, DoctorStats } from '@/lib/doctor-service';
+import { AppointmentService } from '@/lib/appointment-service';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import {
@@ -18,7 +19,8 @@ import {
   Stethoscope,
   DollarSign,
   Award,
-  CalendarClock
+  CalendarClock,
+  Check
 } from 'lucide-react';
 
 export default function DoctorDashboard() {
@@ -28,24 +30,28 @@ export default function DoctorDashboard() {
   const [stats, setStats] = useState<DoctorStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
 
   useEffect(() => {
     // Check if user is logged in and is a doctor
     const checkAuth = async () => {
       try {
         const user = await AuthService.getCurrentUser();
-        console.log('Current user:', user);
+        console.log('✅ Current user:', user);
+        console.log('✅ User role:', user?.role);
+        console.log('✅ Auth token:', AuthService.getToken()?.substring(0, 50) + '...');
 
         if (!user || user.role !== 'DOCTOR') {
-          console.log('Not a doctor or not logged in, redirecting...');
+          console.log('❌ Not a doctor or not logged in, redirecting...');
+          console.log('❌ User:', user);
           router.push('/login');
           return;
         }
 
-        console.log('Doctor authenticated, fetching dashboard data...');
+        console.log('✅ Doctor authenticated, fetching dashboard data...');
         fetchDashboardData();
       } catch (error) {
-        console.error('Auth check failed:', error);
+        console.error('❌ Auth check failed:', error);
         router.push('/login');
       }
     };
@@ -84,6 +90,34 @@ export default function DoctorDashboard() {
   const handleLogout = () => {
     AuthService.logout();
     router.push('/login');
+  };
+
+  const handleConfirmAppointment = async (appointmentId: number) => {
+    console.log('🔵 Confirming appointment:', appointmentId);
+
+    try {
+      setConfirmingId(appointmentId);
+      setError(null);
+
+      console.log('🔵 Calling confirmAppointment API...');
+      const result = await AppointmentService.confirmAppointment(appointmentId);
+      console.log('✅ Appointment confirmed:', result);
+
+      // Refresh dashboard data
+      console.log('🔵 Refreshing dashboard data...');
+      await fetchDashboardData();
+      console.log('✅ Dashboard refreshed');
+
+      alert('ยืนยันนัดหมายเรียบร้อยแล้ว');
+    } catch (err) {
+      console.error('❌ Error confirming appointment:', err);
+      const errorMessage = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการยืนยันนัดหมาย';
+      setError(errorMessage);
+      alert('เกิดข้อผิดพลาด: ' + errorMessage);
+    } finally {
+      setConfirmingId(null);
+      console.log('🔵 Confirm process finished');
+    }
   };
 
   if (isLoading) {
@@ -334,10 +368,15 @@ export default function DoctorDashboard() {
                           <div className="flex flex-col gap-2">
                             {appointment.status === 'PENDING' && (
                               <>
-                                <button className="p-2 bg-green-100 text-green-700 hover:bg-green-200 rounded-lg transition-colors">
+                                <button
+                                  onClick={() => handleConfirmAppointment(appointment.id)}
+                                  disabled={confirmingId === appointment.id}
+                                  className="p-2 bg-green-100 text-green-700 hover:bg-green-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="ยืนยันนัดหมาย"
+                                >
                                   <CheckCircle className="w-4 h-4" />
                                 </button>
-                                <button className="p-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg transition-colors">
+                                <button className="p-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg transition-colors" title="ยกเลิกนัดหมาย">
                                   <XCircle className="w-4 h-4" />
                                 </button>
                               </>
@@ -397,7 +436,7 @@ export default function DoctorDashboard() {
                     <div className="flex-1">
                       {appointment ? (
                         <div className="flex items-center justify-between">
-                          <div>
+                          <div className="flex-1">
                             <p className="font-medium text-gray-800">
                               {appointment.patient.firstName} {appointment.patient.lastName}
                             </p>
@@ -417,6 +456,27 @@ export default function DoctorDashboard() {
                                appointment.status === 'COMPLETED' ? 'เสร็จสิ้น' :
                                appointment.status}
                             </span>
+
+                            {/* DEBUG: Show raw status */}
+                            <span className="text-xs text-red-600 font-mono">[{appointment.status}]</span>
+
+                            {/* Always show button for testing */}
+                            <button
+                              onClick={(e) => {
+                                console.log('🟢🟢🟢 BUTTON CLICKED! Appointment ID:', appointment.id);
+                                alert('Button clicked! ID: ' + appointment.id + ' Status: ' + appointment.status);
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleConfirmAppointment(appointment.id);
+                              }}
+                              disabled={confirmingId === appointment.id}
+                              className="relative z-50 px-3 py-1.5 bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 cursor-pointer shadow-md text-xs font-medium"
+                              title="ยืนยันนัดหมาย"
+                              type="button"
+                              style={{ pointerEvents: 'auto' }}
+                            >
+                              {confirmingId === appointment.id ? 'กำลังยืนยัน...' : 'ยืนยัน'}
+                            </button>
                           </div>
                         </div>
                       ) : (
