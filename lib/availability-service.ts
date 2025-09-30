@@ -119,6 +119,8 @@ export class AvailabilityService {
         ? `${API_BASE_URL}/api/availability/doctor/${doctorId}?dayOfWeek=${dayOfWeek}`
         : `${API_BASE_URL}/api/availability/doctor/${doctorId}`;
 
+      console.log('🔵 Fetching doctor availability from:', url);
+
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -126,14 +128,33 @@ export class AvailabilityService {
         },
       });
 
+      console.log('📡 Response status:', response.status);
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to fetch doctor availability');
+        // Try to get error text first
+        const responseText = await response.text();
+        console.error('❌ Error response text:', responseText);
+
+        let errorMessage = `Failed to fetch doctor availability (Status: ${response.status})`;
+
+        if (responseText) {
+          try {
+            const error = JSON.parse(responseText);
+            errorMessage = error.message || errorMessage;
+          } catch (e) {
+            // Response is not JSON, use text as error
+            errorMessage = responseText || errorMessage;
+          }
+        }
+
+        throw new Error(errorMessage);
       }
 
-      return await response.json();
+      const data = await response.json();
+      console.log('✅ Availability data:', data);
+      return data;
     } catch (error) {
-      console.error('Error fetching doctor availability:', error);
+      console.error('❌ Error fetching doctor availability:', error);
       throw error;
     }
   }

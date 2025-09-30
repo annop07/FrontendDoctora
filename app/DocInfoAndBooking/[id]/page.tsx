@@ -1,15 +1,18 @@
 'use client';
 import { useParams } from "next/navigation";
 import React, { useState, useEffect } from 'react';
-import { Calendar, User, GraduationCap, Languages, Clock, ArrowLeft, ArrowRight, Stethoscope, Building, Heart } from 'lucide-react';
+import { Calendar, User, ArrowLeft, ArrowRight, Stethoscope, Building, CheckCircle } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useRouter } from "next/navigation";
+import { AvailabilityService, Availability } from '@/lib/availability-service';
+import { AppointmentService, BookedSlot } from '@/lib/appointment-service';
 
 // ===================== Interfaces =====================
 interface TimeSlot {
   time: string;
   available: boolean;
+  status?: 'available' | 'pending' | 'booked'; // booking status
 }
 
 interface DaySchedule {
@@ -81,6 +84,9 @@ const DoctorDetailWireframes = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewStart, setViewStart] = useState<Date>(getStartOfWeek(new Date()));
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
+  const [availabilities, setAvailabilities] = useState<Availability[]>([]);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [bookedSlots, setBookedSlots] = useState<Map<string, BookedSlot[]>>(new Map());
 
   const apiService = new DoctorApiService();
 
@@ -102,42 +108,164 @@ const DoctorDetailWireframes = () => {
     loadDoctor();
   }, [routeId]);
 
-  // Mock schedule generation (this would come from backend in real implementation)
-  const BASE_SLOTS = [
-    "09:00-10:00", "10:00-11:00", "13:00-14:00", "14:00-15:00", "15:00-16:00"
-  ];
+  // Load doctor availability from backend
+  useEffect(() => {
+    const loadAvailability = async () => {
+      if (!routeId) return;
 
-  const generateScheduleForDoctor = (doctorId: number, weekDates: Date[]) => {
-    const getSeedForDate = (doctorId: number, date: Date) => {
-      const dateString = date.toISOString().split('T')[0];
-      let hash = 0;
-      const str = `${doctorId}-${dateString}`;
-      for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash;
+      try {
+        setLoadingAvailability(true);
+        console.log('🔵 Loading availability for doctor:', routeId);
+        const data = await AvailabilityService.getDoctorAvailability(routeId);
+        console.log('✅ Availability data loaded:', data);
+        setAvailabilities(data);
+      } catch (error) {
+        console.error('❌ Failed to load availability:', error);
+        // Don't set error state - just use empty array for no availability
+        setAvailabilities([]);
+      } finally {
+        setLoadingAvailability(false);
       }
-      return Math.abs(hash) % 100;
     };
 
+    loadAvailability();
+  }, [routeId]);
+
+  // Load booked slots for the current week
+  useEffect(() => {
+    const loadBookedSlotsForWeek = async () => {
+      if (!routeId) return;
+
+      const weekDates = getCurrentWeekDates();
+      const newBookedSlots = new Map<string, BookedSlot[]>();
+
+      console.log('🔵 [loadBookedSlots] Loading booked slots for doctor:', routeId);
+
+      // Fetch booked slots for each day in the week
+      await Promise.all(
+        weekDates.map(async (date) => {
+          // Use local date format (YYYY-MM-DD) to avoid timezone issues
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const dateString = `${year}-${month}-${day}`;
+
+          try {
+            const slots = await AppointmentService.getBookedTimeSlots(routeId, dateString);
+            console.log(`✅ [loadBookedSlots] ${dateString}: ${slots.length} booked slots`, slots);
+            newBookedSlots.set(dateString, slots);
+          } catch (error) {
+            console.error(`❌ [loadBookedSlots] Failed to load booked slots for ${dateString}:`, error);
+            newBookedSlots.set(dateString, []);
+          }
+        })
+      );
+
+      console.log('📊 [loadBookedSlots] All booked slots:', Object.fromEntries(newBookedSlots));
+      setBookedSlots(newBookedSlots);
+    };
+
+    loadBookedSlotsForWeek();
+  }, [routeId, viewStart]);
+
+  // Generate real schedule from availability data
+  const generateScheduleFromAvailability = (weekDates: Date[]) => {
     return weekDates.map((dateObj) => {
-      const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
-      const seed = getSeedForDate(doctorId, dateObj);
-      
+      const dayOfWeek = dateObj.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+
+      // Use local date format to match the booked slots Map keys
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      const dateString = `${year}-${month}-${day}`;
+
+      // Find availability for this day of week
+      const dayAvailabilities = availabilities.filter(av => av.dayOfWeek === dayOfWeek);
+
+      // Get booked slots for this date
+      const dayBookedSlots = bookedSlots.get(dateString) || [];
+      console.log(`🔍 [generateSchedule] ${dateString}: ${dayBookedSlots.length} booked slots from Map`);
+
+      // Generate time slots from availability data
+      const slots: TimeSlot[] = [];
+
+      dayAvailabilities.forEach(availability => {
+        // Convert startTime and endTime to time slots
+        const startTime = AvailabilityService.formatTime(availability.startTime);
+        const endTime = AvailabilityService.formatTime(availability.endTime);
+
+        // Parse times
+        const [startHour, startMin] = startTime.split(':').map(Number);
+        const [endHour, endMin] = endTime.split(':').map(Number);
+
+        // Generate 1-hour slots within the availability window
+        let currentHour = startHour;
+        let currentMin = startMin;
+
+        while (currentHour < endHour || (currentHour === endHour && currentMin < endMin)) {
+          const nextHour = currentMin + 60 >= 60 ? currentHour + 1 : currentHour;
+          const nextMin = (currentMin + 60) % 60;
+
+          // Don't create slots that go past the end time
+          if (nextHour > endHour || (nextHour === endHour && nextMin > endMin)) {
+            break;
+          }
+
+          const slotStart = `${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')}`;
+          const slotEnd = `${String(nextHour).padStart(2, '0')}:${String(nextMin).padStart(2, '0')}`;
+          const timeRange = `${slotStart}-${slotEnd}`;
+
+          // Check if this slot is booked
+          const bookedSlot = dayBookedSlots.find(booked => {
+            // Extract date and time from backend format: "2025-10-01T12:00:00"
+            const bookedDateTime = booked.startTime;
+            const bookedDate = bookedDateTime.split('T')[0]; // "2025-10-01"
+            const bookedTime = bookedDateTime.split('T')[1]?.substring(0, 5); // "12:00"
+
+            // Compare both date and time
+            return bookedDate === dateString && bookedTime === slotStart;
+          });
+
+          console.log(`[Slot Check] ${dateString} ${slotStart}: bookedSlot=`, bookedSlot);
+
+          let slotStatus: 'available' | 'pending' | 'booked' = 'available';
+          let isAvailable = true;
+
+          if (bookedSlot) {
+            console.log(`⚠️ [Slot ${dateString} ${slotStart}] Found booking:`, bookedSlot);
+            if (bookedSlot.status === 'CONFIRMED' || bookedSlot.status === 'COMPLETED') {
+              slotStatus = 'booked';
+              isAvailable = false; // Cannot book
+              console.log(`❌ [Slot ${dateString} ${slotStart}] Status: BOOKED (disabled)`);
+            } else if (bookedSlot.status === 'PENDING') {
+              slotStatus = 'pending';
+              isAvailable = true; // Can still book but show warning
+              console.log(`🟡 [Slot ${dateString} ${slotStart}] Status: PENDING (warning)`);
+            }
+          }
+
+          slots.push({
+            time: timeRange,
+            available: isAvailable,
+            status: slotStatus,
+          });
+
+          currentHour = nextHour;
+          currentMin = nextMin;
+        }
+      });
+
       return {
         day: dateObj.toLocaleDateString('th-TH', { weekday: 'short' }),
         dayFull: dateObj.toLocaleDateString('th-TH', { weekday: 'long' }),
         dateObj,
-        slots: BASE_SLOTS.map((time, i) => ({
-          time,
-          available: isWeekend ? (seed + i) % 4 !== 0 : (seed + i) % 3 !== 0,
-        }))
+        slots: slots.sort((a, b) => a.time.localeCompare(b.time)), // Sort by time
       };
     });
   };
 
   const getCurrentWeekDates = () => getWeekDates(viewStart);
-  const mockWeeklySchedule = doctor ? generateScheduleForDoctor(doctor.id, getCurrentWeekDates()) : [];
+  const weeklySchedule = generateScheduleFromAvailability(getCurrentWeekDates());
 
   // Handle date change
   const handleDateChange = (dateString: string) => {
@@ -386,133 +514,177 @@ const DoctorDetailWireframes = () => {
         </div>
 
         {/* Appointment Booking Section */}
-        <div id="booking-section" className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-emerald-100 overflow-hidden">
+        <div id="booking-section" className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-8 py-6">
+          <div className="bg-gradient-to-r from-emerald-500 via-teal-500 to-green-600 px-8 py-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                <Calendar className="w-7 h-7" />
+              <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                <Calendar className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold">การนัดเข้ารักษา</h2>
-                <p className="text-emerald-100 text-sm">{doctor.doctorName}</p>
+                <h2 className="text-2xl font-bold text-white mb-1">จองนัดหมายแพทย์</h2>
+                <p className="text-white/90 text-sm">{doctor.doctorName} • {doctor.specialty.name}</p>
               </div>
             </div>
           </div>
 
-          <div className="p-8 space-y-8">
-            {/* Date Picker */}
-            <div className="text-center">
-              <label className="block text-lg font-semibold text-gray-800 mb-4 flex items-center justify-center gap-2">
-                <Calendar className="w-5 h-5 text-emerald-600" />
-                เลือกวันที่ต้องการนัดหมาย
-              </label>
-              <div className="inline-block">
+          <div className="p-8">
+            {/* Step 1: Date Selection */}
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                  selectedDate ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-600'
+                }`}>
+                  1
+                </div>
+                <h3 className="text-lg font-bold text-gray-900">เลือกวันที่</h3>
+              </div>
+
+              <div className="flex items-center gap-4 pl-11">
                 <input
                   type="date"
-                  className="text-lg px-6 py-4 border-2 border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-center font-semibold bg-white/80 backdrop-blur-sm transition-all duration-200"
+                  className="flex-1 max-w-xs px-4 py-3 border-2 border-gray-200 bg-white rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-base font-medium transition-all hover:border-emerald-300"
                   value={new Date(selectedDate.getTime() - selectedDate.getTimezoneOffset() * 60000).toISOString().slice(0,10)}
                   onChange={(e) => handleDateChange(e.target.value)}
                   min={new Date().toISOString().split('T')[0]}
                 />
+                <div className="text-sm text-gray-600">
+                  {selectedDate.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                </div>
               </div>
             </div>
 
-            {/* Schedule Table Header */}
-            <div>
-              <div className="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
-                <div className="flex items-center gap-3">
-                  <Clock className="w-6 h-6 text-emerald-600" />
-                  <h3 className="text-xl font-bold text-gray-900">ตารางเวลาตรวจ</h3>
-                  <span className="text-sm text-amber-600 bg-amber-50 px-2 py-1 rounded">
-                    (Mock Data - จะเชื่อม Backend ในอนาคต)
-                  </span>
+            {/* Divider */}
+            <div className="border-t border-gray-200 mb-8"></div>
+
+            {/* Step 2: Time Selection */}
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                  selectedTimeSlot ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-600'
+                }`}>
+                  2
                 </div>
-                
-                <div className="flex items-center gap-4">
-                  <button 
+                <h3 className="text-lg font-bold text-gray-900">เลือกช่วงเวลา</h3>
+                {loadingAvailability && (
+                  <span className="text-xs text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full font-medium">
+                    กำลังโหลด...
+                  </span>
+                )}
+              </div>
+
+              <div className="pl-11">
+                {/* Week Navigation */}
+                <div className="flex items-center justify-between mb-6 bg-gray-50 rounded-xl p-4">
+                  <button
                     onClick={prevWeek}
                     disabled={!canGoPrevious()}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-200 ${
-                      canGoPrevious() 
-                        ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border border-emerald-200' 
-                        : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-200'
+                    className={`p-2.5 rounded-lg transition-all ${
+                      canGoPrevious()
+                        ? 'hover:bg-white text-gray-700 border-2 border-gray-300 hover:border-emerald-400 hover:text-emerald-600'
+                        : 'text-gray-300 cursor-not-allowed border-2 border-gray-200'
                     }`}
                   >
                     <ArrowLeft className="w-5 h-5" />
-                    <span className="hidden sm:inline">ก่อนหน้า</span>
                   </button>
-                  
-                  <div className="text-center">
-                    <div className="text-sm text-gray-600 font-medium">
-                      ({getCurrentWeekDates()[0].toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} - {getCurrentWeekDates()[6].toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })})
-                    </div>
+
+                  <div className="text-base font-semibold text-gray-800">
+                    {getCurrentWeekDates()[0].toLocaleDateString('th-TH', { day: 'numeric', month: 'long' })} - {getCurrentWeekDates()[6].toLocaleDateString('th-TH', { day: 'numeric', month: 'long' })}
                   </div>
-                  
-                  <button 
+
+                  <button
                     onClick={nextWeek}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 rounded-xl text-white font-medium transition-all duration-200 shadow-lg hover:shadow-emerald-200"
+                    className="p-2.5 rounded-lg hover:bg-white text-gray-700 border-2 border-gray-300 hover:border-emerald-400 hover:text-emerald-600 transition-all"
                   >
-                    <span className="hidden sm:inline">หน้าต่อไป</span>
                     <ArrowRight className="w-5 h-5" />
                   </button>
                 </div>
-              </div>
 
-              {/* Schedule Table */}
-              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-6 border border-emerald-100">
+                {/* Schedule Grid */}
                 <div className="grid grid-cols-7 gap-3">
-                  {mockWeeklySchedule.map((dayData: DaySchedule, index: number) => {
+                  {weeklySchedule.map((dayData: DaySchedule, index: number) => {
                     const isSelected = sameYMD(dayData.dateObj, selectedDate);
                     const isToday = sameYMD(dayData.dateObj, new Date());
                     const isPastDate = dayData.dateObj < new Date(new Date().setHours(0, 0, 0, 0));
-                    
-                    const availableSlots = (dayData.slots && !isPastDate) 
-                      ? dayData.slots.filter((slot: TimeSlot) => slot.available) 
+
+                    const availableSlots = (dayData.slots && !isPastDate)
+                      ? dayData.slots.filter((slot: TimeSlot) => slot.available)
                       : [];
-                    
+
                     return (
-                      <div key={index} className={`bg-white/80 backdrop-blur-sm rounded-xl shadow-sm overflow-hidden border-2 transition-all duration-300 hover:shadow-lg ${
-                        isPastDate ? 'opacity-50' : isSelected ? 'border-emerald-400 shadow-emerald-200' : 'border-emerald-200'
+                      <div key={index} className={`rounded-xl overflow-hidden border-2 transition-all ${
+                        isPastDate
+                          ? 'opacity-40 border-gray-200'
+                          : isSelected
+                            ? 'border-emerald-500 shadow-lg shadow-emerald-100'
+                            : 'border-gray-200 hover:border-emerald-300'
                       }`}>
                         {/* Day Header */}
-                        <div className={`p-3 text-center font-semibold ${
-                          isPastDate 
-                            ? 'bg-gray-200 text-gray-500'
-                            : isSelected 
-                              ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white' 
-                              : isToday 
-                                ? 'bg-gradient-to-r from-emerald-100 to-teal-100 text-emerald-800'
-                                : 'bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700'
+                        <div className={`p-3 text-center ${
+                          isPastDate
+                            ? 'bg-gray-100 text-gray-400'
+                            : isSelected
+                              ? 'bg-gradient-to-br from-emerald-500 to-teal-500 text-white'
+                              : isToday
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : 'bg-gray-50 text-gray-700'
                         }`}>
-                          <div className="text-xs font-medium">{dayData.day}</div>
-                          <div className="text-lg font-bold">{dayData.dateObj.getDate()}</div>
+                          <div className="text-xs font-semibold mb-1 uppercase tracking-wide">{dayData.day}</div>
+                          <div className="text-2xl font-bold">{dayData.dateObj.getDate()}</div>
                         </div>
 
-                        {/* Available Time Slots */}
-                        <div className="p-3 space-y-2">
+                        {/* Time Slots */}
+                        <div className="p-2 space-y-1.5 max-h-80 overflow-y-auto bg-white">
                           {availableSlots.length > 0 ? (
                             availableSlots.map((slot: TimeSlot, slotIndex: number) => {
                               const isPicked = sameYMD(dayData.dateObj, selectedDate) && selectedTimeSlot === slot.time;
-                              
+                              const slotStatus = slot.status || 'available';
+
+                              // Determine button styling based on status
+                              let buttonClass = '';
+                              let statusBadge = null;
+
+                              if (!slot.available) {
+                                // Booked/Confirmed - Gray, disabled
+                                buttonClass = 'bg-gray-200 text-gray-500 cursor-not-allowed border border-gray-300';
+                                statusBadge = <span className="text-xs">เต็ม</span>;
+                              } else if (isPicked) {
+                                // Selected - Emerald gradient
+                                buttonClass = 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md';
+                              } else if (slotStatus === 'pending') {
+                                // Pending - Yellow warning
+                                buttonClass = 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100 border-2 border-yellow-300 hover:border-yellow-400';
+                                statusBadge = <span className="text-xs">มีคิวรอ</span>;
+                              } else {
+                                // Available - Green
+                                buttonClass = 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-2 border-emerald-200 hover:border-emerald-400';
+                              }
+
                               return (
                                 <button
                                   key={slotIndex}
                                   onClick={() => handleTimeSlotClick(dayData.dateObj, slot)}
-                                  className={`w-full p-2.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
-                                    isPicked
-                                      ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg transform scale-105'
-                                      : 'bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-700 hover:from-emerald-100 hover:to-teal-100 border border-emerald-200 hover:border-emerald-300'
-                                  }`}
+                                  disabled={!slot.available}
+                                  className={`w-full px-3 py-2.5 text-xs font-semibold rounded-lg transition-all ${buttonClass}`}
+                                  title={
+                                    !slot.available
+                                      ? 'เวลานี้เต็มแล้ว'
+                                      : slotStatus === 'pending'
+                                        ? 'มีคิวรอยืนยัน - ยังสามารถจองได้'
+                                        : 'ว่าง - สามารถจองได้'
+                                  }
                                 >
-                                  {slot.time}
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <span>{slot.time}</span>
+                                    {statusBadge}
+                                  </div>
                                 </button>
                               );
                             })
                           ) : (
-                            <div className="text-center py-6">
-                              <div className="text-gray-400 text-xs">
-                                {isPastDate ? 'วันที่ผ่านมาแล้ว' : 'ไม่มีเวลาว่าง'}
+                            <div className="text-center py-12">
+                              <div className="text-gray-400 text-sm font-medium">
+                                {isPastDate ? 'ผ่านแล้ว' : 'ไม่มีเวลาว่าง'}
                               </div>
                             </div>
                           )}
@@ -524,41 +696,49 @@ const DoctorDetailWireframes = () => {
               </div>
             </div>
 
-            {/* Booking Summary & Confirm */}
+            {/* Step 3: Confirmation */}
             {selectedTimeSlot && (
-              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-2xl p-6 shadow-lg">
-                <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                  <div className="text-center md:text-left">
-                    <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
-                      <Heart className="w-5 h-5 text-emerald-600" />
-                      <h4 className="text-lg font-bold text-emerald-800">เลือกเวลาแล้ว</h4>
-                    </div>
-                    <p className="text-emerald-700 font-medium mb-1">
-                      📅 {selectedDate.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                    </p>
-                    <p className="text-emerald-700 font-medium">⏰ เวลา {selectedTimeSlot}</p>
-                    <p className="text-emerald-600 text-sm mt-2">กรุณายืนยันการจองเพื่อทำการนัดหมาย</p>
-                  </div>
-                  <button 
-                    onClick={handleBookingConfirm}
-                    className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-8 py-4 rounded-xl font-bold text-lg transition-all duration-200 shadow-xl hover:shadow-2xl hover:scale-105 flex items-center gap-2"
-                  >
-                    <Calendar className="w-5 h-5" />
-                    ยืนยันการจอง
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+              <>
+                <div className="border-t border-gray-200 mb-8"></div>
 
-        {/* Backend Integration Status */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="text-blue-800 font-medium mb-2">🔗 Backend Integration Status</h4>
-          <div className="text-sm text-blue-700 space-y-1">
-            <p>✅ <strong>Connected:</strong> Doctor profile data from backend API</p>
-            <p>⏳ <strong>Mock Data:</strong> Schedule/availability data (requires backend implementation)</p>
-            <p>📝 <strong>Next Steps:</strong> Implement availability API endpoints in Spring Boot</p>
+                <div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold bg-emerald-500 text-white">
+                      3
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900">ยืนยันการจอง</h3>
+                  </div>
+
+                  <div className="pl-11">
+                    <div className="bg-gradient-to-r from-emerald-500 via-teal-500 to-green-600 rounded-2xl p-6 shadow-xl">
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+                        <div className="flex items-center gap-5">
+                          <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center flex-shrink-0">
+                            <CheckCircle className="w-8 h-8 text-white" />
+                          </div>
+                          <div className="text-white">
+                            <p className="text-sm font-medium opacity-90 mb-2">นัดหมายของคุณ</p>
+                            <div className="text-xl font-bold mb-1">
+                              {selectedDate.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' })}
+                            </div>
+                            <div className="text-lg font-semibold opacity-95">
+                              เวลา {selectedTimeSlot} น.
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleBookingConfirm}
+                          className="bg-white hover:bg-gray-50 text-emerald-600 px-10 py-4 rounded-xl font-bold text-base transition-all shadow-lg hover:shadow-xl hover:scale-105 flex items-center gap-3 whitespace-nowrap"
+                        >
+                          <Calendar className="w-5 h-5" />
+                          ยืนยันการจอง
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

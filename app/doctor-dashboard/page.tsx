@@ -34,7 +34,7 @@ export default function DoctorDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
-  const [selectedPatientInfo, setSelectedPatientInfo] = useState<PatientBookingInfoResponse | null>(null);
+  const [selectedPatientInfo, setSelectedPatientInfo] = useState<(PatientBookingInfoResponse & { appointmentDatetime?: string }) | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loadingPatientInfo, setLoadingPatientInfo] = useState(false);
   const [appointmentFilter, setAppointmentFilter] = useState<'ALL' | 'PENDING' | 'CONFIRMED' | 'CANCELLED'>('ALL');
@@ -134,10 +134,17 @@ export default function DoctorDashboard() {
       setLoadingPatientInfo(true);
       setError(null);
 
+      // Find the appointment from the list
+      const appointment = appointments.find(apt => apt.id === appointmentId);
+
       const patientInfo = await AppointmentService.getPatientBookingInfo(appointmentId);
       console.log('✅ Patient info retrieved:', patientInfo);
 
-      setSelectedPatientInfo(patientInfo);
+      // Store both patient info and appointment data
+      setSelectedPatientInfo({
+        ...patientInfo,
+        appointmentDatetime: appointment?.appointmentDatetime
+      });
       setIsModalOpen(true);
     } catch (err) {
       console.error('❌ Error fetching patient info:', err);
@@ -731,18 +738,43 @@ export default function DoctorDashboard() {
               {/* Booking Information */}
               <div>
                 <h3 className="text-sm font-semibold text-gray-900 mb-3">ข้อมูลการจอง</h3>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                  <div>
-                    <label className="text-xs text-gray-500">ประเภทการจอง</label>
-                    <p className="text-sm font-medium text-gray-900">
-                      {selectedPatientInfo.bookingType === 'auto' ? 'จองอัตโนมัติ' : 'เลือกหมอเอง'}
-                    </p>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-x-4">
+                    <div>
+                      <label className="text-xs text-gray-500">ประเภทการจอง</label>
+                      <p className="text-sm font-medium text-gray-900">
+                        {selectedPatientInfo.bookingType === 'auto' ? 'จองอัตโนมัติ' : 'เลือกหมอเอง'}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">หมายเลขคิว</label>
+                      <p className="text-sm font-medium text-emerald-600">
+                        {selectedPatientInfo.queueNumber}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-xs text-gray-500">เวลาที่จอง</label>
-                    <p className="text-sm font-medium text-gray-900">
-                      {new Date(selectedPatientInfo.createdAt).toLocaleString('th-TH')}
-                    </p>
+                  <div className="grid grid-cols-2 gap-x-4">
+                    <div>
+                      <label className="text-xs text-gray-500">วันเวลานัดหมาย</label>
+                      <p className="text-sm font-medium text-gray-900">
+                        {selectedPatientInfo.appointmentDatetime ? (() => {
+                          const { date, time } = DoctorService.formatAppointmentDateTime(selectedPatientInfo.appointmentDatetime);
+                          return `${date} ${time}`;
+                        })() : '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">จองเมื่อ</label>
+                      <p className="text-sm font-medium text-gray-600">
+                        {(() => {
+                          const dt = new Date(selectedPatientInfo.createdAt);
+                          return dt.toLocaleString('th-TH', {
+                            dateStyle: 'short',
+                            timeStyle: 'short'
+                          });
+                        })()}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>

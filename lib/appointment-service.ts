@@ -273,17 +273,24 @@ export class AppointmentService {
     patientData: any,
     doctorId: number
   ): CreateAppointmentWithPatientInfoRequest {
-    // Parse date and time
+    // Parse date and time (fix timezone issue)
     const appointmentDate = new Date(bookingData.selectedDate);
     const timeRange = bookingData.selectedTime || "9:00-10:00";
-    const startTime = timeRange.split('-')[0];
+    const startTime = timeRange.split('-')[0].trim();
     const [hour, minute] = startTime.split(':').map(Number);
 
-    appointmentDate.setHours(hour, minute, 0, 0);
+    // Create date-time string in local timezone format: YYYY-MM-DDTHH:mm:ss
+    const year = appointmentDate.getFullYear();
+    const month = String(appointmentDate.getMonth() + 1).padStart(2, '0');
+    const day = String(appointmentDate.getDate()).padStart(2, '0');
+    const hourStr = String(hour).padStart(2, '0');
+    const minuteStr = String(minute).padStart(2, '0');
+
+    const localDateTimeString = `${year}-${month}-${day}T${hourStr}:${minuteStr}:00`;
 
     return {
       doctorId: doctorId,
-      appointmentDateTime: appointmentDate.toISOString(),
+      appointmentDateTime: localDateTimeString,
       durationMinutes: 30,
       notes: bookingData.symptoms || bookingData.illness || "",
 
@@ -308,7 +315,28 @@ export class AppointmentService {
    * Helper: Format appointment datetime for display
    */
   static formatAppointmentDateTime(datetime: string): { date: string; time: string } {
-    const dt = new Date(datetime);
+    // Handle local datetime string (YYYY-MM-DDTHH:mm:ss) without timezone
+    let dt: Date;
+
+    if (!datetime.endsWith('Z') && !datetime.includes('+') && !datetime.includes('-', 10)) {
+      // It's a local datetime string - parse manually to avoid timezone conversion
+      const parts = datetime.split('T');
+      const dateParts = parts[0].split('-');
+      const timeParts = parts[1]?.split(':') || ['0', '0', '0'];
+
+      dt = new Date(
+        parseInt(dateParts[0]),
+        parseInt(dateParts[1]) - 1,
+        parseInt(dateParts[2]),
+        parseInt(timeParts[0]),
+        parseInt(timeParts[1]),
+        parseInt(timeParts[2] || '0')
+      );
+    } else {
+      // Has timezone info - parse normally
+      dt = new Date(datetime);
+    }
+
     const date = dt.toLocaleDateString('th-TH');
     const time = dt.toLocaleTimeString('th-TH', {
       hour: '2-digit',
@@ -344,4 +372,28 @@ export class AppointmentService {
     };
     return statusMap[status] || status;
   }
+
+  /**
+   * Get booked time slots for a specific doctor and date
+   */
+  static async getBookedTimeSlots(doctorId: number, date: string): Promise<BookedSlot[]> {
+    const response = await fetch(
+      `${API_BASE_URL}/api/appointments/doctor/${doctorId}/booked-slots?date=${date}`
+    );
+
+    if (!response.ok) {
+      console.error('Failed to fetch booked slots:', response.status);
+      return [];
+    }
+
+    const data = await response.json();
+    return data.bookedSlots || [];
+  }
+}
+
+export interface BookedSlot {
+  appointmentId: number;
+  startTime: string;
+  durationMinutes: number;
+  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
 }

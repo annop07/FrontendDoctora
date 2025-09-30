@@ -154,7 +154,35 @@ export class DoctorService {
    * Helper: Format appointment datetime for display
    */
   static formatAppointmentDateTime(datetime: string): { date: string; time: string } {
-    const dt = new Date(datetime);
+    // If datetime doesn't have timezone info, treat as local time
+    let dt: Date;
+    if (datetime.includes('Z') || datetime.includes('+') || datetime.includes('T') && datetime.split('T')[1].includes(':')) {
+      // Has timezone or is ISO format - parse normally
+      dt = new Date(datetime);
+    } else {
+      // No timezone - treat as local
+      dt = new Date(datetime);
+    }
+
+    // If it's ISO UTC string (ends with Z), it's already in UTC
+    // If it's YYYY-MM-DDTHH:mm:ss (no Z), treat as local time
+    if (!datetime.endsWith('Z') && !datetime.includes('+') && !datetime.includes('-', 10)) {
+      // It's a local datetime string (YYYY-MM-DDTHH:mm:ss)
+      // Parse it as local time by creating date manually
+      const parts = datetime.split('T');
+      const dateParts = parts[0].split('-');
+      const timeParts = parts[1]?.split(':') || ['0', '0', '0'];
+
+      dt = new Date(
+        parseInt(dateParts[0]),
+        parseInt(dateParts[1]) - 1,
+        parseInt(dateParts[2]),
+        parseInt(timeParts[0]),
+        parseInt(timeParts[1]),
+        parseInt(timeParts[2] || '0')
+      );
+    }
+
     const date = dt.toLocaleDateString('th-TH');
     const time = dt.toLocaleTimeString('th-TH', {
       hour: '2-digit',
