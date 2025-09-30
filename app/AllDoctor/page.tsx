@@ -381,14 +381,21 @@ export default function DoctorSearchPage() {
 
   // Navigation to doctor detail/booking
   const goDoc = (doctor: Doctor, mode: "detail" | "booking") => {
-    const q = new URLSearchParams({
-      name: doctor.doctorName,
-      department: doctor.specialty.name,
-    }).toString();
+  // Store doctor ID in session before navigation
+  const draft = JSON.parse(sessionStorage.getItem('bookingDraft') || '{}');
+  draft.doctorId = doctor.id; // ⭐ ADD THIS LINE
+  draft.selectedDoctor = doctor.doctorName;
+  draft.depart = doctor.specialty.name;
+  sessionStorage.setItem('bookingDraft', JSON.stringify(draft));
 
-    const hash = mode === "booking" ? "#booking" : "";
-    router.push(`/DocInfoAndBooking/${doctor.id}?${q}${hash}`);
-  };
+  const q = new URLSearchParams({
+    name: doctor.doctorName,
+    department: doctor.specialty.name,
+  }).toString();
+
+  const hash = mode === "booking" ? "#booking" : "";
+  router.push(`/DocInfoAndBooking/${doctor.id}?${q}${hash}`);
+};
 
   // Handle time slot selection
   const handleTimeSelect = (time: string) => {

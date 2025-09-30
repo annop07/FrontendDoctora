@@ -195,16 +195,20 @@ const DoctorDetailWireframes = () => {
 
   // Booking confirmation
   const handleBookingConfirm = () => {
-    if (!selectedTimeSlot || !doctor) return;
+  if (!selectedTimeSlot || !doctor) return;
 
-    const draft = JSON.parse(sessionStorage.getItem('bookingDraft') || '{}');
-    draft.selectedDoctor = doctor.doctorName;
-    draft.depart = doctor.specialty.name;
-    draft.selectedDate = selectedDate.toISOString();
-    draft.selectedTime = selectedTimeSlot;
-    sessionStorage.setItem('bookingDraft', JSON.stringify(draft));
+  const draft = JSON.parse(sessionStorage.getItem('bookingDraft') || '{}');
+  
+  // Store the doctor ID and other booking info
+  draft.doctorId = doctor.id;
+  draft.selectedDoctor = doctor.doctorName;
+  draft.depart = doctor.specialty.name;
+  draft.selectedDate = selectedDate.toISOString();
+  draft.selectedTime = selectedTimeSlot
+  
+  sessionStorage.setItem('bookingDraft', JSON.stringify(draft));
 
-    router.push('/patientForm');
+  router.push('/patientForm');
   };
 
   // Scroll to booking section when hash is present

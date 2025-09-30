@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
+import { AppointmentService } from '@/lib/appointment-service';
+import { useAuth } from '@/context/auth-context';
 import {
   CheckCircle, User, Calendar, Clock, Stethoscope,
   FileCheck, ArrowLeft, Download, Phone, Mail, CreditCard, Globe
@@ -38,6 +40,8 @@ function mapIllnessLabel(val?: string) {
 const DRAFT_KEY = "bookingDraft";
 
 export default function ConfirmPage() {
+  const { user } = useAuth();
+  const [savingToBackend, setSavingToBackend] = useState(false);
   const router = useRouter();
   const [patient, setPatient] = useState<PatientData>({});
   const [depart, setDepart] = useState("");
@@ -289,13 +293,45 @@ export default function ConfirmPage() {
   };
 
   const handleConfirm = async () => {
-    setIsLoading(true);
+  setIsLoading(true);
 
-    // save booking history by user
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (user.email) {
+  try {
+    // Get draft data
+    const draft = JSON.parse(sessionStorage.getItem('bookingDraft') || '{}');
+    
+    // Check if doctorId exists
+    if (!draft.doctorId) {
+      alert('เกิดข้อผิดพลาด: Doctor information is missing. Please go back and select a doctor.');
+      setIsLoading(false);
+      return;
+    }
+
+    // Parse date and time
+    const [hours, minutes] = selectedTime.split(':');
+    const appointmentDate = new Date(selectedDate);
+    appointmentDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    
+    // Save to backend database
+    console.log('Saving appointment to backend:', {
+      doctorId: draft.doctorId,
+      appointmentDateTime: appointmentDate.toISOString(),
+      notes: illness
+    });
+
+    const appointment = await AppointmentService.createAppointment({
+      doctorId: draft.doctorId,
+      appointmentDateTime: appointmentDate.toISOString(),
+      durationMinutes: 30,
+      notes: illness || ''
+    });
+
+    console.log('Appointment saved successfully:', appointment);
+
+    // Save to localStorage for UI display
+    const userEmail = user?.email || JSON.parse(localStorage.getItem('user') || '{}').email;
+    if (userEmail) {
       const bookingRecord = {
-        id: Date.now(),
+        id: appointment.id,
         queueNumber: queue,
         patientName: `${patient.prefix} ${patient.firstName} ${patient.lastName}`,
         doctorName: doctor || "-",
@@ -303,24 +339,46 @@ export default function ConfirmPage() {
         appointmentType: mapIllnessLabel(illness),
         date: selectedDate,
         time: selectedTime,
-        status: "กำลังรอ",
-        statusColor: "text-amber-600 bg-amber-50",
-        createdAt: new Date().toISOString(),
-        userEmail: user.email
+        status: appointment.status,
+        statusColor: getStatusColor(appointment.status),
+        createdAt: appointment.createdAt,
+        userEmail: userEmail,
+        backendId: appointment.id
       };
 
-      const historyKey = `bookingHistory_${user.email}`;
+      const historyKey = `bookingHistory_${userEmail}`;
       const existingHistory = JSON.parse(localStorage.getItem(historyKey) || '[]');
       existingHistory.push(bookingRecord);
       localStorage.setItem(historyKey, JSON.stringify(existingHistory));
     }
 
+    // Generate PDF
     await new Promise(resolve => setTimeout(resolve, 100));
     const success = await exportPDF(queue);
+    
     if (success) {
       setTimeout(() => router.push("/finishbooking"), 1000);
     }
-  };
+  } catch (error) {
+    console.error('Error saving appointment:', error);
+    setIsLoading(false);
+    
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create appointment';
+    alert(`เกิดข้อผิดพลาด: ${errorMessage}\n\nกรุณาลองใหม่อีกครั้ง`);
+  }
+};
+
+// Add helper function
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'PENDING': return 'text-amber-600 bg-amber-50';
+    case 'CONFIRMED': return 'text-green-600 bg-green-50';
+    case 'CANCELLED': return 'text-red-600 bg-red-50';
+    case 'COMPLETED': return 'text-emerald-600 bg-emerald-50';
+    case 'NO_SHOW': return 'text-gray-600 bg-gray-50';
+    default: return 'text-amber-600 bg-amber-50';
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
