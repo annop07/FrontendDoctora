@@ -121,4 +121,8 @@ export class AuthService {
   static isAuthenticated(): boolean {
     return !!this.getToken();
   }
+
+  static logout(): void {
+    this.removeToken();
+  }
 }
