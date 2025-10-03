@@ -54,32 +54,56 @@ export default function BookingPage() {
     }
   }, [depart, selectedTime, selectedDate, illness, selectionParam]);
 
-  // Auto select doctor when illness is 'auto'
+  // Auto select doctor when illness is 'auto' - ใช้ Smart Selection API
   useEffect(() => {
     const autoSelectDoctor = async () => {
       if (illness === 'auto' && depart && !selectedDoctor && !isLoadingDoctor) {
         setIsLoadingDoctor(true);
         try {
-          const response = await fetch(`http://localhost:8082/api/doctors/by-specialty?specialty=${encodeURIComponent(depart)}`);
+          console.log('🎯 [Auto Select] Calling smart-select API for specialty:', depart);
+          console.log('🎯 [Auto Select] Selected date:', selectedDate);
+
+          // Build URL with date parameter if available
+          let url = `http://localhost:8082/api/doctors/smart-select?specialty=${encodeURIComponent(depart)}`;
+
+          if (selectedDate) {
+            const year = selectedDate.getFullYear();
+            const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+            const day = String(selectedDate.getDate()).padStart(2, '0');
+            const dateString = `${year}-${month}-${day}`;
+            url += `&date=${dateString}`;
+            console.log('🎯 [Auto Select] Using date for queue check:', dateString);
+          }
+
+          // เรียก Smart Selection API ใหม่
+          const response = await fetch(url);
+
           if (response.ok) {
             const data = await response.json();
-            if (data.doctors && data.doctors.length > 0) {
-              // เลือกแพทย์ตัวแรก
-              const doctor = data.doctors[0];
-              setSelectedDoctor(doctor);
+            console.log('✅ [Auto Select] Response:', data);
+
+            if (data.doctor) {
+              // ระบบเลือกแพทย์ให้แล้ว
+              setSelectedDoctor(data.doctor);
 
               // บันทึกลง sessionStorage
               const existingRaw = sessionStorage.getItem(DRAFT_KEY);
               const existing = existingRaw ? JSON.parse(existingRaw) : {};
               sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
                 ...existing,
-                selectedDoctor: doctor.doctorName,
-                selectedDoctorId: doctor.id
+                selectedDoctor: data.doctor.doctorName,
+                selectedDoctorId: data.doctor.id
               }));
+
+              console.log(`🎯 [Auto Select] Selected: ${data.doctor.doctorName} (ID: ${data.doctor.id})`);
+            } else {
+              console.warn('⚠️ [Auto Select] No doctor available:', data.message);
             }
+          } else {
+            console.error('❌ [Auto Select] API error:', response.status);
           }
         } catch (error) {
-          console.error('Error auto-selecting doctor:', error);
+          console.error('❌ [Auto Select] Error:', error);
         } finally {
           setIsLoadingDoctor(false);
         }
@@ -87,7 +111,7 @@ export default function BookingPage() {
     };
 
     autoSelectDoctor();
-  }, [illness, depart, selectedDoctor, isLoadingDoctor]);
+  }, [illness, depart, selectedDoctor, isLoadingDoctor, selectedDate]);
 
   useEffect(() => {
     const existingRaw = sessionStorage.getItem(DRAFT_KEY);

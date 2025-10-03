@@ -46,6 +46,7 @@ interface UseAdminDataReturn {
   checkBackendConnection: () => Promise<void>;
   toggleDoctorStatus: (doctorId: number, currentStatus: boolean) => Promise<void>;
   deleteSpecialty: (specialtyId: number) => Promise<void>;
+  deleteDoctor: (doctorId: number) => Promise<void>;
 }
 
 export const useAdminData = (apiBaseUrl: string): UseAdminDataReturn => {
@@ -311,7 +312,7 @@ export const useAdminData = (apiBaseUrl: string): UseAdminDataReturn => {
 
   const deleteSpecialty = async (specialtyId: number) => {
     if (!confirm('Are you sure you want to delete this specialty?')) return;
-    
+
     setLoading(true);
     try {
       const response = await fetch(`${apiBaseUrl}/api/admin/specialties/${specialtyId}`, {
@@ -333,6 +334,59 @@ export const useAdminData = (apiBaseUrl: string): UseAdminDataReturn => {
     }
   };
 
+  const deleteDoctor = async (doctorId: number) => {
+    setLoading(true);
+    try {
+      console.log('Deleting doctor:', doctorId);
+      console.log('API URL:', `${apiBaseUrl}/api/admin/doctors/${doctorId}`);
+
+      const response = await fetch(`${apiBaseUrl}/api/admin/doctors/${doctorId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+
+      console.log('Delete response status:', response.status);
+
+      if (response.ok) {
+        // Find the doctor's specialty to update count
+        const doctor = doctors.find(d => d.id === doctorId);
+        const specialtyId = doctor?.specialty.id;
+
+        // Remove doctor from state
+        setDoctors(doctors.filter(d => d.id !== doctorId));
+
+        // Update specialty count if doctor was active
+        if (specialtyId && doctor?.isActive) {
+          setSpecialties(prev => prev.map(specialty => {
+            if (specialty.id === specialtyId) {
+              return { ...specialty, doctorCount: Math.max(0, specialty.doctorCount - 1) };
+            }
+            return specialty;
+          }));
+        }
+
+        alert('Doctor deleted successfully!');
+      } else {
+        // Get detailed error message
+        const errorText = await response.text();
+        console.error('Delete failed - Status:', response.status);
+        console.error('Delete failed - Response:', errorText);
+
+        try {
+          const errorData = JSON.parse(errorText);
+          alert(`Delete failed: ${errorData.message || `Status ${response.status}`}`);
+        } catch {
+          alert(`Delete failed: ${errorText.substring(0, 200)}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting doctor:', error);
+      alert('Error deleting doctor: ' + (error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     doctors,
     specialties,
@@ -346,6 +400,7 @@ export const useAdminData = (apiBaseUrl: string): UseAdminDataReturn => {
     loadUsers,
     checkBackendConnection,
     toggleDoctorStatus,
-    deleteSpecialty
+    deleteSpecialty,
+    deleteDoctor
   };
 };

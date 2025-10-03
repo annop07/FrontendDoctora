@@ -5,9 +5,23 @@ import { Users, UserPlus, Stethoscope, Building, Plus, Search } from 'lucide-rea
 import { useAuth } from '@/context/auth-context';
 import { useAdminData } from '@/hooks/useAdminData';
 import DoctorForm from '@/components/admin/DoctorForm';
+import DoctorEditForm from '@/components/admin/DoctorEditForm';
 import SpecialtyForms from '@/components/admin/SpecialtyForms';
 import DoctorsTable from '@/components/admin/DoctorsTable';
 import SpecialtiesTable from '@/components/admin/SpecialtiesTable';
+
+interface Doctor {
+  id: number;
+  doctorName: string;
+  email: string;
+  specialty: { id: number; name: string };
+  licenseNumber: string;
+  experienceYears: number;
+  consultationFee: number;
+  roomNumber: string;
+  isActive: boolean;
+  bio?: string;
+}
 
 interface Specialty {
   id: number;
@@ -32,11 +46,14 @@ const AdminDashboard = () => {
     loadSpecialties,
     checkBackendConnection,
     toggleDoctorStatus,
-    deleteSpecialty
+    deleteSpecialty,
+    deleteDoctor
   } = useAdminData(apiBaseUrl);
 
   const [activeTab, setActiveTab] = useState('doctors');
   const [showCreateDoctor, setShowCreateDoctor] = useState(false);
+  const [showEditDoctor, setShowEditDoctor] = useState(false);
+  const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null);
   const [showCreateSpecialty, setShowCreateSpecialty] = useState(false);
   const [showEditSpecialty, setShowEditSpecialty] = useState(false);
   const [editingSpecialty, setEditingSpecialty] = useState<Specialty | null>(null);
@@ -66,6 +83,16 @@ const AdminDashboard = () => {
     specialty.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleEditDoctor = (doctor: Doctor) => {
+    setEditingDoctor(doctor);
+    setShowEditDoctor(true);
+  };
+
+  const handleCloseEditDoctor = () => {
+    setShowEditDoctor(false);
+    setEditingDoctor(null);
+  };
+
   const handleEditSpecialty = (specialty: Specialty) => {
     setEditingSpecialty(specialty);
     setShowEditSpecialty(true);
@@ -77,6 +104,11 @@ const AdminDashboard = () => {
   };
 
   const handleDoctorCreated = async () => {
+    await loadDoctors();
+    await loadSpecialties(); // Refresh to update counts
+  };
+
+  const handleDoctorUpdated = async () => {
     await loadDoctors();
     await loadSpecialties(); // Refresh to update counts
   };
@@ -261,6 +293,8 @@ const AdminDashboard = () => {
               doctors={filteredDoctors}
               loading={loading}
               onToggleStatus={toggleDoctorStatus}
+              onEdit={handleEditDoctor}
+              onDelete={deleteDoctor}
             />
           )}
 
@@ -282,6 +316,15 @@ const AdminDashboard = () => {
         users={users}
         specialties={specialties}
         doctors={doctors}
+        apiBaseUrl={apiBaseUrl}
+      />
+
+      <DoctorEditForm
+        isOpen={showEditDoctor}
+        doctor={editingDoctor}
+        onClose={handleCloseEditDoctor}
+        onDoctorUpdated={handleDoctorUpdated}
+        specialties={specialties}
         apiBaseUrl={apiBaseUrl}
       />
 
