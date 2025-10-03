@@ -2,7 +2,7 @@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react"; 
+import { useEffect, useState, useRef } from "react"; 
 import { Slot } from "@radix-ui/react-slot"
 import Schedule from "@/components/Schedule";
 import UploadBox from "@/components/UploadBox";
@@ -35,6 +35,8 @@ export default function BookingPage() {
   const [illness,setIllness] = useState("");
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [isLoadingDoctor, setIsLoadingDoctor] = useState(false);
+  const [doctorSelectionError, setDoctorSelectionError] = useState<string | null>(null);
+  const previousDateRef = useRef<Date | null>(null);
 
   //เก็บstateตอนกดกลับจากหน้า patientForm
   const selectionParam = searchParams.get("selection");
@@ -57,23 +59,30 @@ export default function BookingPage() {
   // Auto select doctor when illness is 'auto' - ใช้ Smart Selection API
   useEffect(() => {
     const autoSelectDoctor = async () => {
-      if (illness === 'auto' && depart && !selectedDoctor && !isLoadingDoctor) {
+      // เช็คว่าวันที่เปลี่ยนหรือไม่
+      const dateChanged = selectedDate !== previousDateRef.current;
+
+      // ✅ รอให้ผู้ใช้เลือกวันที่ก่อน และเลือกใหม่เมื่อวันที่เปลี่ยน
+      if (illness === 'auto' && depart && selectedDate && dateChanged && !isLoadingDoctor) {
+        // บันทึกวันที่ปัจจุบัน
+        previousDateRef.current = selectedDate;
+
+        // เคลียร์ state เก่า
+        setSelectedDoctor(null);
+        setDoctorSelectionError(null);
         setIsLoadingDoctor(true);
         try {
           console.log('🎯 [Auto Select] Calling smart-select API for specialty:', depart);
           console.log('🎯 [Auto Select] Selected date:', selectedDate);
 
-          // Build URL with date parameter if available
-          let url = `http://localhost:8082/api/doctors/smart-select?specialty=${encodeURIComponent(depart)}`;
+          // Build URL with date parameter (required for auto mode)
+          const year = selectedDate.getFullYear();
+          const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+          const day = String(selectedDate.getDate()).padStart(2, '0');
+          const dateString = `${year}-${month}-${day}`;
 
-          if (selectedDate) {
-            const year = selectedDate.getFullYear();
-            const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-            const day = String(selectedDate.getDate()).padStart(2, '0');
-            const dateString = `${year}-${month}-${day}`;
-            url += `&date=${dateString}`;
-            console.log('🎯 [Auto Select] Using date for queue check:', dateString);
-          }
+          let url = `http://localhost:8082/api/doctors/smart-select?specialty=${encodeURIComponent(depart)}&date=${dateString}`;
+          console.log('🎯 [Auto Select] Using date for availability check:', dateString);
 
           // เรียก Smart Selection API ใหม่
           const response = await fetch(url);
@@ -85,6 +94,7 @@ export default function BookingPage() {
             if (data.doctor) {
               // ระบบเลือกแพทย์ให้แล้ว
               setSelectedDoctor(data.doctor);
+              setDoctorSelectionError(null); // เคลียร์ error
 
               // บันทึกลง sessionStorage
               const existingRaw = sessionStorage.getItem(DRAFT_KEY);
@@ -97,13 +107,18 @@ export default function BookingPage() {
 
               console.log(`🎯 [Auto Select] Selected: ${data.doctor.doctorName} (ID: ${data.doctor.id})`);
             } else {
+              // ไม่มีแพทย์ว่างในวันที่เลือก
               console.warn('⚠️ [Auto Select] No doctor available:', data.message);
+              setSelectedDoctor(null);
+              setDoctorSelectionError(data.message || 'ไม่มีแพทย์ว่างในวันที่เลือก');
             }
           } else {
             console.error('❌ [Auto Select] API error:', response.status);
+            setDoctorSelectionError('เกิดข้อผิดพลาดในการเลือกแพทย์');
           }
         } catch (error) {
           console.error('❌ [Auto Select] Error:', error);
+          setDoctorSelectionError('ไม่สามารถเชื่อมต่อกับระบบได้');
         } finally {
           setIsLoadingDoctor(false);
         }
@@ -111,7 +126,7 @@ export default function BookingPage() {
     };
 
     autoSelectDoctor();
-  }, [illness, depart, selectedDoctor, isLoadingDoctor, selectedDate]);
+  }, [illness, depart, isLoadingDoctor, selectedDate]); // ลบ selectedDoctor ออก!
 
   useEffect(() => {
     const existingRaw = sessionStorage.getItem(DRAFT_KEY);
@@ -184,6 +199,19 @@ export default function BookingPage() {
                   <p className="text-blue-700 font-medium">กำลังเลือกแพทย์ที่เหมาะสมให้คุณ...</p>
                 </div>
               </div>
+            ) : doctorSelectionError ? (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-md">
+                <div className="flex items-start space-x-3">
+                  <svg className="w-5 h-5 text-red-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-red-800 font-medium">ไม่สามารถเลือกแพทย์ได้</p>
+                    <p className="text-sm text-red-700 mt-1">{doctorSelectionError}</p>
+                    <p className="text-xs text-red-600 mt-2">💡 แนะนำ: ลองเปลี่ยนวันที่อื่นหรือเลือกโหมด "เลือกแพทย์เอง"</p>
+                  </div>
+                </div>
+              </div>
             ) : selectedDoctor ? (
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 max-w-md">
                 <div className="flex items-center space-x-3">
@@ -194,6 +222,10 @@ export default function BookingPage() {
                     <p className="text-sm text-green-600">ห้อง {selectedDoctor.roomNumber} • ค่าตรวจ {selectedDoctor.consultationFee} บาท</p>
                   </div>
                 </div>
+              </div>
+            ) : !selectedDate ? (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md">
+                <p className="text-blue-700 font-medium">📅 กรุณาเลือกวันที่เพื่อค้นหาแพทย์ที่ว่าง</p>
               </div>
             ) : (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 max-w-md">
@@ -322,9 +354,25 @@ export default function BookingPage() {
                 กลับ
               </button>
               
-              <button 
-                type="submit" 
-                className="flex items-center gap-2 px-8 py-4 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-semibold"
+              <button
+                type="submit"
+                disabled={
+                  illness === 'auto' && (
+                    isLoadingDoctor ||
+                    doctorSelectionError !== null ||
+                    !selectedDoctor
+                  )
+                }
+                title={
+                  illness === 'auto' && (isLoadingDoctor || doctorSelectionError !== null || !selectedDoctor)
+                    ? 'กรุณารอให้ระบบเลือกแพทย์ หรือเปลี่ยนวันที่อื่น'
+                    : ''
+                }
+                className={`flex items-center gap-2 px-8 py-4 rounded-2xl transition-all duration-200 shadow-lg font-semibold ${
+                  illness === 'auto' && (isLoadingDoctor || doctorSelectionError !== null || !selectedDoctor)
+                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                    : 'bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-xl transform hover:-translate-y-0.5'
+                }`}
               >
                 ต่อไป
                 <ArrowRight className="w-5 h-5" />
