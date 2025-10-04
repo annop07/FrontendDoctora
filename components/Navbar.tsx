@@ -190,14 +190,24 @@ export default function Navbar(){
                   )}
 
                   {user?.role === 'PATIENT' && (
-                    <Link
-                      href="/History"
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 transition-colors text-emerald-700"
-                      onClick={() => setShowDropdown(false)}
-                    >
-                      <History className="w-4 h-4" />
-                      <span>History</span>
-                    </Link>
+                    <>
+                      <Link
+                        href="/patient-profile"
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 transition-colors text-emerald-700"
+                        onClick={() => setShowDropdown(false)}
+                      >
+                        <UserCircle className="w-4 h-4" />
+                        <span>โปรไฟล์</span>
+                      </Link>
+                      <Link
+                        href="/History"
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 transition-colors text-emerald-700"
+                        onClick={() => setShowDropdown(false)}
+                      >
+                        <History className="w-4 h-4" />
+                        <span>History</span>
+                      </Link>
+                    </>
                   )}
                   
                   <button
