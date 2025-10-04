@@ -3,7 +3,7 @@ import { Phone, AlertTriangle } from 'lucide-react'
 
 export default function Footer() {
   return (
-    <footer className="bg-gradient-to-r from-red-600 to-red-700">
+    <footer className="bg-gradient-to-r from-red-600 to-red-700 border-t border-red-500">
       <div className="container mx-auto px-6 py-6">
         <div className="flex items-center justify-center gap-4 flex-wrap mb-4">
           <AlertTriangle className="w-6 h-6 text-red-100 animate-pulse" />

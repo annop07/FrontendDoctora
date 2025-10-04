@@ -149,7 +149,16 @@ const DoctorForm: React.FC<DoctorFormProps> = ({
         onClose();
         onDoctorCreated();
       } else {
-        await handleApiError(response, 'Creating doctor');
+        // Log the error response body for debugging
+        const errorText = await response.text();
+        console.error('Error response body:', errorText);
+
+        try {
+          const errorData = JSON.parse(errorText);
+          setSubmitError(errorData.message || `Failed with status ${response.status}`);
+        } catch {
+          setSubmitError(errorText || `Failed with status ${response.status}`);
+        }
       }
     } catch (error) {
       console.error('Error creating doctor:', error);
@@ -171,7 +180,11 @@ const DoctorForm: React.FC<DoctorFormProps> = ({
     }
   };
 
-  const doctorUsers = users.filter(user => user.role === 'DOCTOR');
+  // Filter users who are not already doctors
+  const availableUsers = users.filter(user => {
+    const isAlreadyDoctor = doctors.some(doc => doc.email === user.email);
+    return !isAlreadyDoctor;
+  });
 
   if (!isOpen) return null;
 
@@ -189,27 +202,27 @@ const DoctorForm: React.FC<DoctorFormProps> = ({
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">Select User *</label>
-            <select 
-              value={formData.userId} 
+            <select
+              value={formData.userId}
               onChange={(e) => setFormData({...formData, userId: e.target.value})}
               className={`w-full border rounded-lg px-3 py-2 ${
                 validationErrors.userId ? 'border-red-500' : 'border-gray-300'
               }`}
               required
             >
-              <option value="">Select a user with DOCTOR role</option>
-              {doctorUsers.map(user => (
+              <option value="">Select a user to promote to Doctor</option>
+              {availableUsers.map(user => (
                 <option key={user.id} value={user.id}>
-                  {user.firstName} {user.lastName} ({user.email})
+                  {user.firstName} {user.lastName} ({user.email}) - {user.role}
                 </option>
               ))}
             </select>
             {validationErrors.userId && (
               <p className="text-sm text-red-600 mt-1">{validationErrors.userId}</p>
             )}
-            {doctorUsers.length === 0 && (
+            {availableUsers.length === 0 && (
               <p className="text-sm text-yellow-600 mt-1">
-                No users with DOCTOR role found. Please create a user with DOCTOR role first.
+                All users are already assigned as doctors. Please create a new user first.
               </p>
             )}
             {formData.userId && (() => {

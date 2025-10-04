@@ -163,9 +163,8 @@ export const useAdminData = (apiBaseUrl: string): UseAdminDataReturn => {
       if (response.ok) {
         const data = await response.json();
         console.log('Users loaded from backend:', data);
-        // Filter only users with DOCTOR role
-        const doctorUsers = data.users?.filter((user: User) => user.role === 'DOCTOR') || [];
-        setUsers(doctorUsers);
+        // Load all users (no filtering by role - let DoctorForm handle the filtering)
+        setUsers(data.users || []);
       } else {
         const responseText = await response.text();
         console.error('Users endpoint failed:', response.status, responseText);

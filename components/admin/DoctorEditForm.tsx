@@ -58,11 +58,11 @@ const DoctorEditForm: React.FC<DoctorEditFormProps> = ({
     if (doctor) {
       setFormData({
         specialtyId: doctor.specialty.id.toString(),
-        licenseNumber: doctor.licenseNumber,
+        licenseNumber: doctor.licenseNumber || '',
         bio: doctor.bio || '',
-        experienceYears: doctor.experienceYears,
-        consultationFee: doctor.consultationFee,
-        roomNumber: doctor.roomNumber
+        experienceYears: doctor.experienceYears || 0,
+        consultationFee: doctor.consultationFee || 500,
+        roomNumber: doctor.roomNumber || ''
       });
     }
   }, [doctor]);
