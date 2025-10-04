@@ -173,14 +173,17 @@ const DoctorDetailWireframes = () => {
     return weekDates.map((dateObj) => {
       const dayOfWeek = dateObj.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
 
+      // Convert to backend format: 1=Monday, 7=Sunday
+      const backendDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
+
       // Use local date format to match the booked slots Map keys
       const year = dateObj.getFullYear();
       const month = String(dateObj.getMonth() + 1).padStart(2, '0');
       const day = String(dateObj.getDate()).padStart(2, '0');
       const dateString = `${year}-${month}-${day}`;
 
-      // Find availability for this day of week
-      const dayAvailabilities = availabilities.filter(av => av.dayOfWeek === dayOfWeek);
+      // Find availability for this day of week (using backend format)
+      const dayAvailabilities = availabilities.filter(av => av.dayOfWeek === backendDayOfWeek);
 
       // Get booked slots for this date
       const dayBookedSlots = bookedSlots.get(dateString) || [];

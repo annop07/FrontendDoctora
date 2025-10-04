@@ -22,7 +22,7 @@ export default function LoginPage() {
       if (user.role === 'ADMIN') {
         router.replace('/admin');
       } else if (user.role === 'DOCTOR') {
-        router.replace('/dashboard');
+        router.replace('/doctor-dashboard');
       } else {
         router.replace('/');
       }
@@ -41,7 +41,7 @@ export default function LoginPage() {
       if (userData.role === 'ADMIN') {
         router.replace('/admin');
       } else if (userData.role === 'DOCTOR') {
-        router.replace('/dashboard');
+        router.replace('/doctor-dashboard');
       } else {
         router.replace('/');
       }

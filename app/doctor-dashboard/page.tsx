@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AuthService } from '@/lib/auth-service';
-import { DoctorService, DoctorProfile, DoctorAppointment, DoctorStats } from '@/lib/doctor-service';
+import { DoctorService, DoctorProfile, DoctorAppointment, DoctorStats, DoctorAvailability } from '@/lib/doctor-service';
 import { AppointmentService, PatientBookingInfoResponse } from '@/lib/appointment-service';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -31,6 +31,7 @@ export default function DoctorDashboard() {
   const [profile, setProfile] = useState<DoctorProfile | null>(null);
   const [appointments, setAppointments] = useState<DoctorAppointment[]>([]);
   const [stats, setStats] = useState<DoctorStats | null>(null);
+  const [availability, setAvailability] = useState<DoctorAvailability[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
@@ -66,12 +67,21 @@ export default function DoctorDashboard() {
     checkAuth();
   }, [router]);
 
+  // Redirect to dashboard when doctor logs in
+  useEffect(() => {
+    const user = AuthService.getCurrentUser();
+    if (user && user.role === 'DOCTOR') {
+      // Already on dashboard, no need to redirect
+      console.log('✅ Doctor is on dashboard');
+    }
+  }, []);
+
   const fetchDashboardData = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      // Fetch all data in parallel
+      // Fetch all data in parallel, but handle availability separately to not break dashboard
       const [profileData, appointmentsData, statsData] = await Promise.all([
         DoctorService.getMyProfile(),
         DoctorService.getMyAppointments(),
@@ -86,6 +96,16 @@ export default function DoctorDashboard() {
       setProfile(profileData);
       setAppointments(appointmentsData.appointments);
       setStats(statsData);
+
+      // Fetch availability separately with error handling
+      try {
+        const availabilityData = await DoctorService.getMyAvailability();
+        console.log('Availability:', availabilityData);
+        setAvailability(availabilityData || []);
+      } catch (availErr) {
+        console.error('Error fetching availability (non-critical):', availErr);
+        setAvailability([]); // Set empty array if availability fetch fails
+      }
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการโหลดข้อมูล');
@@ -231,16 +251,43 @@ export default function DoctorDashboard() {
   const confirmedCount = allUpcomingAppointments.filter(apt => apt.status === 'CONFIRMED').length;
   const cancelledCount = allUpcomingAppointments.filter(apt => apt.status === 'CANCELLED').length;
 
-  // Generate time slots for today's schedule (8:00 AM - 5:00 PM)
+  // Generate time slots based on today's availability
   const generateTimeSlots = () => {
-    const slots = [];
-    for (let hour = 8; hour <= 17; hour++) {
-      slots.push({
-        time: `${hour.toString().padStart(2, '0')}:00`,
-        hour: hour
-      });
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+    // Convert to backend format: 1=Monday, 7=Sunday
+    const backendDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
+
+    // Get today's availability
+    const todayAvailability = availability.filter(
+      av => av.dayOfWeek === backendDayOfWeek && av.isActive
+    );
+
+    if (todayAvailability.length === 0) {
+      return []; // No availability today
     }
-    return slots;
+
+    const slots: { time: string; hour: number; isAvailable: boolean }[] = [];
+
+    // For each availability period
+    todayAvailability.forEach(av => {
+      const startHour = parseInt(av.startTime.split(':')[0]);
+      const endHour = parseInt(av.endTime.split(':')[0]);
+
+      for (let hour = startHour; hour < endHour; hour++) {
+        // Check if slot already exists (in case of overlapping availability)
+        if (!slots.find(s => s.hour === hour)) {
+          slots.push({
+            time: `${hour.toString().padStart(2, '0')}:00`,
+            hour: hour,
+            isAvailable: true
+          });
+        }
+      }
+    });
+
+    // Sort by hour
+    return slots.sort((a, b) => a.hour - b.hour);
   };
 
   const timeSlots = generateTimeSlots();
@@ -369,12 +416,26 @@ export default function DoctorDashboard() {
                       </p>
                     </div>
                   </div>
-                  <div className="pt-4 border-t border-gray-100">
+                  <div className="pt-4 border-t border-gray-100 space-y-2">
                     <button
                       onClick={() => router.push('/doctor-profile')}
                       className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                     >
                       แก้ไขโปรไฟล์
+                    </button>
+                    <button
+                      onClick={() => router.push('/doctor-schedule')}
+                      className="w-full px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                    >
+                      <Clock className="w-4 h-4" />
+                      จัดการเวลาทำงาน
+                    </button>
+                    <button
+                      onClick={() => router.push('/doctor-calendar')}
+                      className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                    >
+                      <CalendarClock className="w-4 h-4" />
+                      ปฏิทิน
                     </button>
                   </div>
                 </div>
@@ -538,22 +599,34 @@ export default function DoctorDashboard() {
               ตารางเวลาวันนี้
             </h2>
 
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {timeSlots.map((slot) => {
-                const appointment = getAppointmentForSlot(slot.hour);
-                const isCurrentHour = new Date().getHours() === slot.hour;
+            {timeSlots.length === 0 ? (
+              <div className="text-center py-12">
+                <Clock className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 text-sm">ไม่มีเวลาทำงานวันนี้</p>
+                <button
+                  onClick={() => router.push('/doctor-schedule')}
+                  className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm"
+                >
+                  ตั้งค่าเวลาทำงาน
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {timeSlots.map((slot) => {
+                  const appointment = getAppointmentForSlot(slot.hour);
+                  const isCurrentHour = new Date().getHours() === slot.hour;
 
-                return (
-                  <div
-                    key={slot.time}
-                    className={`flex items-center gap-4 p-3 rounded-lg border transition-all ${
-                      isCurrentHour
-                        ? 'border-blue-300 bg-blue-50'
-                        : appointment
-                        ? 'border-green-200 bg-green-50 hover:bg-green-100'
-                        : 'border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
+                  return (
+                    <div
+                      key={slot.time}
+                      className={`flex items-center gap-4 p-3 rounded-lg border transition-all ${
+                        isCurrentHour
+                          ? 'border-blue-300 bg-blue-50'
+                          : appointment
+                          ? 'border-green-200 bg-green-50 hover:bg-green-100'
+                          : 'border-emerald-200 bg-emerald-50/30 hover:bg-emerald-50'
+                      }`}
+                    >
                     <div className={`flex-shrink-0 w-16 text-center ${
                       isCurrentHour ? 'text-blue-700 font-semibold' : 'text-gray-600'
                     }`}>
@@ -584,30 +657,27 @@ export default function DoctorDashboard() {
                                appointment.status}
                             </span>
 
-                            {/* DEBUG: Show raw status */}
-                            <span className="text-xs text-red-600 font-mono">[{appointment.status}]</span>
-
-                            {/* Always show button for testing */}
-                            <button
-                              onClick={(e) => {
-                                console.log('🟢🟢🟢 BUTTON CLICKED! Appointment ID:', appointment.id);
-                                alert('Button clicked! ID: ' + appointment.id + ' Status: ' + appointment.status);
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleConfirmAppointment(appointment.id);
-                              }}
-                              disabled={confirmingId === appointment.id}
-                              className="relative z-50 px-3 py-1.5 bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 cursor-pointer shadow-md text-xs font-medium"
-                              title="ยืนยันนัดหมาย"
-                              type="button"
-                              style={{ pointerEvents: 'auto' }}
-                            >
-                              {confirmingId === appointment.id ? 'กำลังยืนยัน...' : 'ยืนยัน'}
-                            </button>
+                            {appointment.status === 'PENDING' && (
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleConfirmAppointment(appointment.id);
+                                }}
+                                disabled={confirmingId === appointment.id}
+                                className="px-3 py-1.5 bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 text-xs font-medium"
+                                title="ยืนยันนัดหมาย"
+                              >
+                                {confirmingId === appointment.id ? 'กำลังยืนยัน...' : 'ยืนยัน'}
+                              </button>
+                            )}
                           </div>
                         </div>
                       ) : (
-                        <div className="text-sm text-gray-400 italic">ว่าง</div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm text-emerald-600 font-medium">ว่าง</div>
+                          <span className="text-xs text-emerald-500">พร้อมรับนัดหมาย</span>
+                        </div>
                       )}
                     </div>
 
@@ -622,7 +692,8 @@ export default function DoctorDashboard() {
                   </div>
                 );
               })}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

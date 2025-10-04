@@ -55,6 +55,14 @@ export interface DoctorStats {
   averageConsultationFee: number;
 }
 
+export interface DoctorAvailability {
+  id: number;
+  dayOfWeek: number; // 1=Monday, 7=Sunday
+  startTime: string; // "09:00:00"
+  endTime: string;   // "17:00:00"
+  isActive: boolean;
+}
+
 export class DoctorService {
   private static getAuthHeaders() {
     const token = AuthService.getToken();
@@ -122,6 +130,23 @@ export class DoctorService {
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to fetch doctor appointments');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get current doctor's availability schedules
+   */
+  static async getMyAvailability(): Promise<DoctorAvailability[]> {
+    const response = await fetch(`${API_BASE_URL}/api/availability/my`, {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch doctor availability');
     }
 
     return response.json();
