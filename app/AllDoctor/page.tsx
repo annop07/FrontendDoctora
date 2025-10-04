@@ -789,14 +789,7 @@ export default function DoctorSearchPage() {
         </div>
 
         {/* Backend Integration Status Info */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
-          <h4 className="text-blue-800 font-medium mb-2">🔗 Backend Integration Status</h4>
-          <div className="text-sm text-blue-700 space-y-1">
-            <p>✅ <strong>Connected:</strong> Doctor data, specialty data, search by name, department filtering</p>
-            <p>⏳ <strong>Not yet implemented:</strong> Time slots, date filtering, availability status</p>
-            <p>📝 <strong>Note:</strong> Add these filters to your Spring Boot backend for full functionality</p>
-          </div>
-        </div>
+        
       </div>
       
       <Footer />

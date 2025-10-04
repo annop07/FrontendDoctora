@@ -18,6 +18,9 @@ export default function DoctorProfilePage() {
 
   // Form state
   const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    phone: '',
     bio: '',
     experienceYears: 0,
     consultationFee: 0,
@@ -62,6 +65,9 @@ export default function DoctorProfilePage() {
 
       // Initialize form data
       setFormData({
+        firstName: data.firstName || '',
+        lastName: data.lastName || '',
+        phone: data.phone || '',
         bio: data.bio || '',
         experienceYears: data.experienceYears || 0,
         consultationFee: data.consultationFee || 0,
@@ -86,6 +92,9 @@ export default function DoctorProfilePage() {
     // Reset form data to original profile
     if (profile) {
       setFormData({
+        firstName: profile.firstName || '',
+        lastName: profile.lastName || '',
+        phone: profile.phone || '',
         bio: profile.bio || '',
         experienceYears: profile.experienceYears || 0,
         consultationFee: profile.consultationFee || 0,
@@ -239,6 +248,63 @@ export default function DoctorProfilePage() {
           <h3 className="text-lg font-semibold text-gray-900 mb-6">รายละเอียดโปรไฟล์</h3>
 
           <div className="space-y-6">
+            {/* First Name */}
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                <User className="w-4 h-4" />
+                ชื่อ
+              </label>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={formData.firstName}
+                  onChange={(e) => handleInputChange('firstName', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="กรอกชื่อ"
+                />
+              ) : (
+                <p className="text-gray-600">{profile.firstName || 'ไม่ระบุ'}</p>
+              )}
+            </div>
+
+            {/* Last Name */}
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                <User className="w-4 h-4" />
+                นามสกุล
+              </label>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={formData.lastName}
+                  onChange={(e) => handleInputChange('lastName', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="กรอกนามสกุล"
+                />
+              ) : (
+                <p className="text-gray-600">{profile.lastName || 'ไม่ระบุ'}</p>
+              )}
+            </div>
+
+            {/* Phone */}
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                <User className="w-4 h-4" />
+                เบอร์โทรศัพท์
+              </label>
+              {isEditing ? (
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => handleInputChange('phone', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="กรอกเบอร์โทรศัพท์"
+                />
+              ) : (
+                <p className="text-gray-600">{profile.phone || 'ไม่ระบุ'}</p>
+              )}
+            </div>
+
             {/* Bio */}
             <div>
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">

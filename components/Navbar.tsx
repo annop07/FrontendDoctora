@@ -239,9 +239,6 @@ export default function Navbar(){
           ) : null}
         </div>
       </div>
-      
-      {/* Bottom glow effect */}
-      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-300/40 via-green-300/40 to-teal-300/40"></div>
     </nav>
   )
 }

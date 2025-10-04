@@ -6,13 +6,16 @@ export interface DoctorProfile {
   id: number;
   doctorName: string;
   email: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  fullName: string;
   licenseNumber: string;
   bio: string;
   experienceYears: number;
   consultationFee: number;
   roomNumber: string;
   isActive: boolean;
-  phone: string;
   specialty: {
     id: number;
     name: string;
@@ -68,7 +71,7 @@ export class DoctorService {
    * Get current doctor's profile
    */
   static async getMyProfile(): Promise<DoctorProfile> {
-    const response = await fetch(`${API_BASE_URL}/api/doctors/profile/my`, {
+    const response = await fetch(`${API_BASE_URL}/api/doctors/me`, {
       method: 'GET',
       headers: this.getAuthHeaders(),
     });
@@ -85,12 +88,15 @@ export class DoctorService {
    * Update current doctor's profile
    */
   static async updateMyProfile(profileData: {
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
     bio?: string;
     experienceYears?: number;
     consultationFee?: number;
     roomNumber?: string;
   }): Promise<{ message: string; doctor: DoctorProfile }> {
-    const response = await fetch(`${API_BASE_URL}/api/doctors/profile/my`, {
+    const response = await fetch(`${API_BASE_URL}/api/doctors/me`, {
       method: 'PUT',
       headers: this.getAuthHeaders(),
       body: JSON.stringify(profileData),

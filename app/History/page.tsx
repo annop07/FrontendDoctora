@@ -2,8 +2,35 @@
 
 import { Clock, Calendar, FileText, Stethoscope, RefreshCw } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { AuthService } from '@/lib/auth-service';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+
+interface Appointment {
+  id: number;
+  doctor: {
+    id: number;
+    doctorName: string;
+    specialty: {
+      id: number;
+      name: string;
+    };
+  };
+  patient: {
+    id: number;
+    email: string;
+    firstName: string;
+    lastName: string;
+  };
+  appointmentDatetime: string;
+  durationMinutes: number;
+  status: string;
+  notes: string;
+  doctorNotes: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 interface BookingRecord {
   id: number;
@@ -17,58 +44,133 @@ interface BookingRecord {
   status: string;
   statusColor: string;
   createdAt: string;
-  userEmail: string;
+  symptoms?: string;
 }
 
 export default function HistoryPage() {
+  const router = useRouter();
   const [bookingHistory, setBookingHistory] = useState<BookingRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // ฟังก์ชันโหลดประวัติการจอง
-  const loadBookingHistory = () => {
-    setIsLoading(true);
-    try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      if (user.email) {
-        const historyKey = `bookingHistory_${user.email}`;
-        const history = JSON.parse(localStorage.getItem(historyKey) || '[]');
-        // เรียงลำดับตามวันที่สร้างใหม่สุดก่อน
-        const sortedHistory = history.sort((a: BookingRecord, b: BookingRecord) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-        setBookingHistory(sortedHistory);
-      }
-    } catch (error) {
-      console.error('Error loading booking history:', error);
-      setBookingHistory([]);
-    } finally {
-      setIsLoading(false);
+  // Helper function to get status color
+  const getStatusColor = (status: string): string => {
+    switch (status.toUpperCase()) {
+      case 'CONFIRMED':
+      case 'COMPLETED':
+        return 'text-emerald-600 bg-emerald-50';
+      case 'PENDING':
+        return 'text-amber-600 bg-amber-50';
+      case 'CANCELLED':
+        return 'text-red-600 bg-red-50';
+      default:
+        return 'text-gray-600 bg-gray-50';
     }
   };
 
-  // ฟังก์ชันเปลี่ยนสถานะการจอง (สำหรับ demo)
-  const updateBookingStatus = (bookingId: number, newStatus: string) => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (user.email) {
-      const historyKey = `bookingHistory_${user.email}`;
-      const history = JSON.parse(localStorage.getItem(historyKey) || '[]');
-      
-      const updatedHistory = history.map((booking: BookingRecord) => {
-        if (booking.id === bookingId) {
-          let statusColor = 'text-amber-600 bg-amber-50';
-          if (newStatus === 'เสร็จสิ้น') {
-            statusColor = 'text-emerald-600 bg-emerald-50';
-          } else if (newStatus === 'ยกเลิก') {
-            statusColor = 'text-red-600 bg-red-50';
-          }
-          
-          return { ...booking, status: newStatus, statusColor };
-        }
-        return booking;
+  // Helper function to translate status to Thai
+  const translateStatus = (status: string): string => {
+    switch (status.toUpperCase()) {
+      case 'CONFIRMED':
+        return 'ยืนยันแล้ว';
+      case 'PENDING':
+        return 'รอยืนยัน';
+      case 'CANCELLED':
+        return 'ยกเลิก';
+      case 'COMPLETED':
+        return 'เสร็จสิ้น';
+      default:
+        return status;
+    }
+  };
+
+  // Convert Appointment to BookingRecord format
+  const convertToBookingRecord = (appointment: Appointment): BookingRecord => {
+    // Parse appointmentDatetime to separate date and time
+    const datetime = new Date(appointment.appointmentDatetime);
+    const dateStr = datetime.toLocaleDateString('th-TH', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const timeStr = datetime.toLocaleTimeString('th-TH', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+
+    // Generate queue number (A-XXX format)
+    const queueNumber = `A-${String(appointment.id).padStart(3, '0')}`;
+
+    // Get patient name
+    const patientName = `${appointment.patient.firstName || ''} ${appointment.patient.lastName || ''}`.trim()
+      || appointment.patient.email.split('@')[0];
+
+    return {
+      id: appointment.id,
+      queueNumber: queueNumber,
+      patientName: patientName,
+      doctorName: appointment.doctor.doctorName,
+      department: appointment.doctor.specialty.name,
+      appointmentType: appointment.notes ? 'ตรวจอาการ' : 'ตรวจทั่วไป',
+      date: dateStr,
+      time: timeStr,
+      status: translateStatus(appointment.status),
+      statusColor: getStatusColor(appointment.status),
+      createdAt: appointment.createdAt,
+      symptoms: appointment.notes,
+    };
+  };
+
+  // ฟังก์ชันโหลดประวัติการจองจาก Backend
+  const loadBookingHistory = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Check authentication
+      const user = await AuthService.getCurrentUser();
+      if (!user || user.role !== 'PATIENT') {
+        console.log('❌ [History] Not authorized, redirecting to login');
+        router.push('/login');
+        return;
+      }
+
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082';
+      const token = AuthService.getToken();
+
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch(`${apiBaseUrl}/api/appointments/my`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
       });
-      
-      localStorage.setItem(historyKey, JSON.stringify(updatedHistory));
-      setBookingHistory(updatedHistory);
+
+      if (!response.ok) {
+        throw new Error(`Failed to load appointments: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ [History] Appointments loaded:', data);
+
+      const appointments: Appointment[] = data.appointments || [];
+
+      // Convert to BookingRecord format and sort by createdAt (newest first)
+      const bookingRecords = appointments
+        .map(convertToBookingRecord)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      setBookingHistory(bookingRecords);
+
+    } catch (error) {
+      console.error('❌ [History] Error loading appointments:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load appointment history');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -85,6 +187,29 @@ export default function HistoryPage() {
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
               <p className="text-emerald-700 font-medium">กำลังโหลดประวัติ...</p>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
+        <Navbar />
+        <main className="container mx-auto px-6 py-12">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+              <h3 className="text-red-800 font-medium mb-2">เกิดข้อผิดพลาด</h3>
+              <p className="text-red-700 text-sm">{error}</p>
+              <button
+                onClick={loadBookingHistory}
+                className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                ลองใหม่
+              </button>
             </div>
           </div>
         </main>
@@ -147,29 +272,12 @@ export default function HistoryPage() {
                           <span className="text-sm text-emerald-600">หมายเลขคิว</span>
                           <span className="text-lg font-bold text-emerald-800">{booking.queueNumber}</span>
                         </div>
-                        <h3 className="text-lg font-bold text-emerald-900">{booking.doctorName}</h3>
+                        <h3 className="text-lg font-bold text-emerald-900">แพทย์: {booking.doctorName}</h3>
                         <p className="text-emerald-700">{booking.department}</p>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <div className={`px-3 py-1 rounded-full text-sm font-medium ${booking.statusColor}`}>
-                        {booking.status}
-                      </div>
-                      {/* Demo buttons to change status */}
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => updateBookingStatus(booking.id, 'เสร็จสิ้น')}
-                          className="px-2 py-1 text-xs bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 transition-colors"
-                        >
-                          เสร็จสิ้น
-                        </button>
-                        <button
-                          onClick={() => updateBookingStatus(booking.id, 'ยกเลิก')}
-                          className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
-                        >
-                          ยกเลิก
-                        </button>
-                      </div>
+                    <div className={`px-3 py-1 rounded-full text-sm font-medium ${booking.statusColor}`}>
+                      {booking.status}
                     </div>
                   </div>
                   
@@ -199,8 +307,20 @@ export default function HistoryPage() {
                         <span className="font-medium text-emerald-900">{booking.appointmentType}</span>
                       </div>
                     </div>
+                    {booking.symptoms && (
+                      <div className="mt-2 text-sm">
+                        <span className="text-emerald-700">อาการ: </span>
+                        <span className="text-emerald-900">{booking.symptoms}</span>
+                      </div>
+                    )}
                     <div className="mt-2 text-xs text-emerald-600">
-                      จองเมื่อ: {new Date(booking.createdAt).toLocaleString('th-TH')}
+                      จองเมื่อ: {new Date(booking.createdAt).toLocaleString('th-TH', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
                     </div>
                   </div>
                 </div>
