@@ -6,7 +6,6 @@ import { useEffect, useState, useRef } from "react";
 import { Slot } from "@radix-ui/react-slot"
 import Schedule from "@/components/Schedule";
 import UploadBox from "@/components/UploadBox";
-import { bookingAction } from "@/utils/action";
 import { useRouter } from "next/navigation";
 import { Clock, Calendar, FileText, Upload, ArrowLeft, ArrowRight, Stethoscope, User } from "lucide-react";
 
@@ -28,6 +27,7 @@ interface Doctor {
 }
 
 export default function BookingPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [depart,setDepart] = useState<string>(searchParams.get("depart") ?? "");
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -37,6 +37,7 @@ export default function BookingPage() {
   const [isLoadingDoctor, setIsLoadingDoctor] = useState(false);
   const [doctorSelectionError, setDoctorSelectionError] = useState<string | null>(null);
   const previousDateRef = useRef<Date | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
 
   //เก็บstateตอนกดกลับจากหน้า patientForm
   const selectionParam = searchParams.get("selection");
@@ -144,6 +145,26 @@ export default function BookingPage() {
     );
   }, [depart,selectedTime,selectedDate,illness]);
 
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    // บันทึกข้อมูลลง sessionStorage
+    const existingRaw = sessionStorage.getItem(DRAFT_KEY);
+    const existing = existingRaw ? JSON.parse(existingRaw) : {};
+
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+      ...existing,
+      symptoms: illness,
+      selectedDate: selectedDate?.toISOString(),
+      selectedTime: selectedTime,
+      // เก็บชื่อไฟล์เท่านั้น (ไม่สามารถเก็บ File object ใน sessionStorage)
+      attachments: uploadedFiles.map(f => f.name)
+    }));
+
+    // ไปหน้าถัดไป
+    router.push('/patientForm');
+  };
+
   const base =
     "w-full h-12 rounded-lg shadow-md p-2 text-left transition-all duration-200 cursor-pointer border-2";
   const active = "bg-emerald-100 border-emerald-500 ring-2 ring-emerald-200 text-emerald-800 font-semibold";
@@ -156,8 +177,6 @@ export default function BookingPage() {
     setSelectedTime(time);
     console.log("เวลาที่เลือก:", time);
   };
-
-  const router = useRouter();
 
   const backButton = () =>{
     router.push("/depart");
@@ -306,7 +325,7 @@ export default function BookingPage() {
           </div>
 
           {/* Form Section */}
-          <form action={bookingAction} className="mt-8 space-y-6">
+          <form onSubmit={handleSubmit} className="mt-8 space-y-6">
             <input type="hidden" name="depart" value={depart} />
             <input type="hidden" name="time" value={selectedTime ?? ""} />
             <input type="hidden" name="date" value={selectedDate?.toISOString() ?? ""} />
@@ -318,7 +337,7 @@ export default function BookingPage() {
                 <label className="text-lg font-semibold text-gray-800">อาการและปัญหาสุขภาพ</label>
               </div>
               <textarea
-                name="illness"
+                 name="illness"
                 value={illness === "auto" ? "" : illness}
                 onChange={(e) => setIllness(e.target.value)}
                 rows={4}
@@ -334,11 +353,14 @@ export default function BookingPage() {
                 <label className="text-lg font-semibold text-gray-800">แนบไฟล์เพิ่มเติม</label>
               </div>
               <div className="bg-emerald-50 rounded-xl border-2 border-dashed border-emerald-300 p-4">
-                <UploadBox 
-                  name="attachments" 
-                  accept="image/*,.pdf" 
-                  multiple 
-                  onChange={(files) => console.log("ไฟล์ที่อัพโหลด:",files)}
+                <UploadBox
+                  name="attachments"
+                  accept="image/*,.pdf"
+                  multiple
+                  onChange={(files) => {
+                    setUploadedFiles(files);
+                    console.log("ไฟล์ที่อัพโหลด:", files.map(f => ({ name: f.name, size: f.size })));
+                  }}
                 />
               </div>
             </div>

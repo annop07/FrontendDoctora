@@ -18,23 +18,36 @@ const PatientForm = () => {
     const handleNext = () => {
     const form = document.querySelector("form") as HTMLFormElement;
         if (!form) return;
-    
+
         // ตรวจสอบว่า form ครบทุก required field
         if (!form.checkValidity()) {
             form.reportValidity(); // แสดงข้อความเตือน
             return;
         }
-    
+
         const formData = new FormData(form);
         const data: Record<string, string> = {};
-    
+
         formData.forEach((value, key) => {
             data[key] = value.toString();
         });
-    
+
+        // แปลงวันเกิดจาก พ.ศ. เป็น format yyyy-MM-dd (ค.ศ.)
+        if (data.birthDay && data.birthMonth && data.birthYear) {
+            const day = data.birthDay.padStart(2, '0');
+            const month = data.birthMonth.padStart(2, '0');
+            const yearAD = parseInt(data.birthYear) - 543; // แปลง พ.ศ. เป็น ค.ศ.
+            data.dob = `${yearAD}-${month}-${day}`;
+
+            // ลบ field แยกออก
+            delete data.birthDay;
+            delete data.birthMonth;
+            delete data.birthYear;
+        }
+
         // เก็บลง sessionStorage
         sessionStorage.setItem("patientData", JSON.stringify(data));
-    
+
     // ไปหน้าคอนเฟิร์ม
         router.push("/confirmbooking");
   };
@@ -114,16 +127,50 @@ const PatientForm = () => {
 
                 {/* วันเกิด */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">วันเกิด</label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-emerald-600" />
-                    <input 
-                      name="dob" 
-                      type="date" 
-                      max={new Date(Date.now() - 86400000).toISOString().split("T")[0]} 
-                      className="w-full pl-12 pr-4 py-3 rounded-xl border-2 border-emerald-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200" 
-                      required 
-                    />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">วันเกิด (พ.ศ.)</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <select
+                      name="birthDay"
+                      className="rounded-xl border-2 border-emerald-200 px-3 py-3 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200"
+                      defaultValue=""
+                      required
+                    >
+                      <option value="" disabled>วัน</option>
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                        <option key={day} value={day}>{day}</option>
+                      ))}
+                    </select>
+                    <select
+                      name="birthMonth"
+                      className="rounded-xl border-2 border-emerald-200 px-3 py-3 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200"
+                      defaultValue=""
+                      required
+                    >
+                      <option value="" disabled>เดือน</option>
+                      <option value="1">มกราคม</option>
+                      <option value="2">กุมภาพันธ์</option>
+                      <option value="3">มีนาคม</option>
+                      <option value="4">เมษายน</option>
+                      <option value="5">พฤษภาคม</option>
+                      <option value="6">มิถุนายน</option>
+                      <option value="7">กรกฎาคม</option>
+                      <option value="8">สิงหาคม</option>
+                      <option value="9">กันยายน</option>
+                      <option value="10">ตุลาคม</option>
+                      <option value="11">พฤศจิกายน</option>
+                      <option value="12">ธันวาคม</option>
+                    </select>
+                    <select
+                      name="birthYear"
+                      className="rounded-xl border-2 border-emerald-200 px-3 py-3 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200"
+                      defaultValue=""
+                      required
+                    >
+                      <option value="" disabled>ปี พ.ศ.</option>
+                      {Array.from({ length: 100 }, (_, i) => new Date().getFullYear() + 543 - i).map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 

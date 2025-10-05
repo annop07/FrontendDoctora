@@ -23,23 +23,8 @@ export async function bookingAction(formData : FormData){
     console.log('Booking data:',obj);
     console.log('Attached files:',files.map(f => ({name : f.name, size : f.size})));
 
-    // Store booking data in sessionStorage for later use
-    const existingDraft = JSON.parse(
-        typeof window !== 'undefined' ? sessionStorage.getItem('bookingDraft') || '{}' : '{}'
-    );
-
-    const bookingData = {
-        ...existingDraft,
-        symptoms: obj.illness as string,
-        selectedDate: obj.date as string,
-        selectedTime: obj.time as string,
-        attachments: files.map(f => f.name),
-        updatedAt: new Date().toISOString()
-    };
-
-    if (typeof window !== 'undefined') {
-        sessionStorage.setItem('bookingDraft', JSON.stringify(bookingData));
-    }
+    // Server actions run on server, cannot access window/sessionStorage
+    // Data will be passed via URL params or handled differently
 
     redirect('/patientForm');
 }

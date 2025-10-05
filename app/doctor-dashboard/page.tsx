@@ -314,7 +314,9 @@ export default function DoctorDashboard() {
               </div>
               <div>
                 <h1 className="text-2xl font-semibold text-gray-800">แดชบอร์ดแพทย์</h1>
-                <p className="text-gray-600 text-sm">ยินดีต้อนรับ, {profile?.doctorName}</p>
+                <p className="text-gray-600 text-sm">
+                  ยินดีต้อนรับ, {profile?.fullName || `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim() || profile?.doctorName || 'แพทย์'}
+                </p>
               </div>
             </div>
             <button
@@ -389,7 +391,9 @@ export default function DoctorDashboard() {
                 <div className="space-y-4">
                   <div>
                     <p className="text-xs text-gray-500 mb-1">ชื่อ-นามสกุล</p>
-                    <p className="font-medium text-gray-800">{profile.doctorName}</p>
+                    <p className="font-medium text-gray-800">
+                      {profile.fullName || `${profile.firstName || ''} ${profile.lastName || ''}`.trim() || profile.doctorName || '-'}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 mb-1">อีเมล</p>
