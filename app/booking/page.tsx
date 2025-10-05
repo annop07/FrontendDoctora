@@ -5,9 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useRef } from "react"; 
 import { Slot } from "@radix-ui/react-slot"
 import Schedule from "@/components/Schedule";
-import UploadBox from "@/components/UploadBox";
 import { useRouter } from "next/navigation";
-import { Clock, Calendar, FileText, Upload, ArrowLeft, ArrowRight, Stethoscope, User } from "lucide-react";
+import { Clock, Calendar, FileText, ArrowLeft, ArrowRight, Stethoscope, User } from "lucide-react";
 
 const DRAFT_KEY = "bookingDraft";
 
@@ -37,7 +36,6 @@ export default function BookingPage() {
   const [isLoadingDoctor, setIsLoadingDoctor] = useState(false);
   const [doctorSelectionError, setDoctorSelectionError] = useState<string | null>(null);
   const previousDateRef = useRef<Date | null>(null);
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
 
   //เก็บstateตอนกดกลับจากหน้า patientForm
   const selectionParam = searchParams.get("selection");
@@ -156,9 +154,7 @@ export default function BookingPage() {
       ...existing,
       symptoms: illness,
       selectedDate: selectedDate?.toISOString(),
-      selectedTime: selectedTime,
-      // เก็บชื่อไฟล์เท่านั้น (ไม่สามารถเก็บ File object ใน sessionStorage)
-      attachments: uploadedFiles.map(f => f.name)
+      selectedTime: selectedTime
     }));
 
     // ไปหน้าถัดไป
@@ -344,25 +340,6 @@ export default function BookingPage() {
                 className="w-full p-4 border-2 border-emerald-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200 bg-white/90 backdrop-blur-sm"
                 placeholder="กรุณาระบุอาการและปัญหาสุขภาพของคุณโดยละเอียด..."
               />
-            </div>
-
-            {/* File Upload */}
-            <div className="space-y-3">
-              <div className="flex items-center space-x-2">
-                <Upload className="w-6 h-6 text-emerald-600" />
-                <label className="text-lg font-semibold text-gray-800">แนบไฟล์เพิ่มเติม</label>
-              </div>
-              <div className="bg-emerald-50 rounded-xl border-2 border-dashed border-emerald-300 p-4">
-                <UploadBox
-                  name="attachments"
-                  accept="image/*,.pdf"
-                  multiple
-                  onChange={(files) => {
-                    setUploadedFiles(files);
-                    console.log("ไฟล์ที่อัพโหลด:", files.map(f => ({ name: f.name, size: f.size })));
-                  }}
-                />
-              </div>
             </div>
 
             {/* Action Buttons */}
