@@ -180,10 +180,11 @@ const DoctorForm: React.FC<DoctorFormProps> = ({
     }
   };
 
-  // Filter users who are not already doctors
+  // Filter users who are not already doctors and have PATIENT role
   const availableUsers = users.filter(user => {
     const isAlreadyDoctor = doctors.some(doc => doc.email === user.email);
-    return !isAlreadyDoctor;
+    const isPatientRole = user.role === 'PATIENT';
+    return !isAlreadyDoctor && isPatientRole;
   });
 
   if (!isOpen) return null;
@@ -222,7 +223,7 @@ const DoctorForm: React.FC<DoctorFormProps> = ({
             )}
             {availableUsers.length === 0 && (
               <p className="text-sm text-yellow-600 mt-1">
-                All users are already assigned as doctors. Please create a new user first.
+                No PATIENT users available. All PATIENT users are already assigned as doctors or no PATIENT users exist. Please create a new PATIENT user first.
               </p>
             )}
             {formData.userId && (() => {

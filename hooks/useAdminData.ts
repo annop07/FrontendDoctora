@@ -119,9 +119,9 @@ export const useAdminData = (apiBaseUrl: string): UseAdminDataReturn => {
   const loadDoctors = async () => {
     try {
       console.log('Loading doctors from:', `${apiBaseUrl}/api/doctors`);
-      
-      // For admin dashboard, include inactive doctors by adding the parameter
-      const response = await fetch(`${apiBaseUrl}/api/doctors?includeInactive=true`);
+
+      // For admin dashboard, include inactive doctors and request all records (size=1000)
+      const response = await fetch(`${apiBaseUrl}/api/doctors?includeInactive=true&size=1000`);
       
       console.log('Doctors response status:', response.status);
       console.log('Doctors response headers:', Object.fromEntries(response.headers.entries()));

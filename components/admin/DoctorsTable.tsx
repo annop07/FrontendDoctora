@@ -33,7 +33,7 @@ const DoctorsTable: React.FC<DoctorsTableProps> = ({
   onDelete
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(10); // เปลี่ยนจาก 10 เป็น 50
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
   // Calculate pagination
