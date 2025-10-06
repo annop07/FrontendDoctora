@@ -39,6 +39,7 @@ export default function DoctorDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loadingPatientInfo, setLoadingPatientInfo] = useState(false);
   const [appointmentFilter, setAppointmentFilter] = useState<'ALL' | 'PENDING' | 'CONFIRMED' | 'CANCELLED'>('ALL');
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
 
   useEffect(() => {
     // Check if user is logged in and is a doctor
@@ -144,6 +145,39 @@ export default function DoctorDashboard() {
     } finally {
       setConfirmingId(null);
       console.log('🔵 Confirm process finished');
+    }
+  };
+
+  const handleCancelAppointment = async (appointmentId: number) => {
+    console.log('🔴 Cancelling appointment:', appointmentId);
+
+    // Confirm with user
+    if (!confirm('คุณต้องการยกเลิกนัดหมายนี้หรือไม่?')) {
+      return;
+    }
+
+    try {
+      setCancellingId(appointmentId);
+      setError(null);
+
+      console.log('🔴 Calling cancelAppointment API...');
+      await AppointmentService.cancelAppointment(appointmentId);
+      console.log('✅ Appointment cancelled');
+
+      // Refresh dashboard data
+      console.log('🔴 Refreshing dashboard data...');
+      await fetchDashboardData();
+      console.log('✅ Dashboard refreshed');
+
+      alert('ยกเลิกนัดหมายเรียบร้อยแล้ว');
+    } catch (err) {
+      console.error('❌ Error cancelling appointment:', err);
+      const errorMessage = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการยกเลิกนัดหมาย';
+      setError(errorMessage);
+      alert('เกิดข้อผิดพลาด: ' + errorMessage);
+    } finally {
+      setCancellingId(null);
+      console.log('🔴 Cancel process finished');
     }
   };
 
@@ -568,7 +602,12 @@ export default function DoctorDashboard() {
                                 >
                                   <CheckCircle className="w-4 h-4" />
                                 </button>
-                                <button className="p-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg transition-colors" title="ยกเลิกนัดหมาย">
+                                <button
+                                  onClick={() => handleCancelAppointment(appointment.id)}
+                                  disabled={cancellingId === appointment.id}
+                                  className="p-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="ยกเลิกนัดหมาย"
+                                >
                                   <XCircle className="w-4 h-4" />
                                 </button>
                               </>
