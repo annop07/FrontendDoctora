@@ -380,15 +380,7 @@ export default function DepartPage() {
           </div>
         )}
 
-        {/* Backend Integration Status */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-8">
-          <h4 className="text-blue-800 font-medium mb-2">🔗 Backend Integration Status</h4>
-          <div className="text-sm text-blue-700 space-y-1">
-            <p>✅ <strong>Connected:</strong> Specialty data loaded from backend API</p>
-            <p>✅ <strong>Connected:</strong> Doctor counts per specialty</p>
-            <p>📝 <strong>Note:</strong> Icons and colors are mapped from specialty names</p>
-          </div>
-        </div>
+
       </main>
 
       <Footer />
