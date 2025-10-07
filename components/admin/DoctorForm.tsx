@@ -180,11 +180,11 @@ const DoctorForm: React.FC<DoctorFormProps> = ({
     }
   };
 
-  // Filter users who are not already doctors
-  // Show all users regardless of role, but exclude those already assigned as doctors
+  // Filter users who are not already doctors and have DOCTOR role
   const availableUsers = users.filter(user => {
     const isAlreadyDoctor = doctors.some(doc => doc.email === user.email);
-    return !isAlreadyDoctor;
+    const isDoctorRole = user.role === 'DOCTOR';
+    return !isAlreadyDoctor && isDoctorRole;
   });
 
   if (!isOpen) return null;
