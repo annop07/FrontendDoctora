@@ -40,10 +40,16 @@ export default function DoctorDashboard() {
   const [loadingPatientInfo, setLoadingPatientInfo] = useState(false);
   const [appointmentFilter, setAppointmentFilter] = useState<'ALL' | 'PENDING' | 'CONFIRMED' | 'CANCELLED'>('ALL');
   const [cancellingId, setCancellingId] = useState<number | null>(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
     // Check if user is logged in and is a doctor
     const checkAuth = async () => {
+      // Prevent multiple redirects
+      if (isRedirecting) {
+        return;
+      }
+
       try {
         const user = await AuthService.getCurrentUser();
         console.log('✅ Current user:', user);
@@ -53,6 +59,7 @@ export default function DoctorDashboard() {
         if (!user || user.role !== 'DOCTOR') {
           console.log('❌ Not a doctor or not logged in, redirecting...');
           console.log('❌ User:', user);
+          setIsRedirecting(true);
           router.replace('/login');
           return;
         }
@@ -61,12 +68,13 @@ export default function DoctorDashboard() {
         fetchDashboardData();
       } catch (error) {
         console.error('❌ Auth check failed:', error);
+        setIsRedirecting(true);
         router.replace('/login');
       }
     };
 
     checkAuth();
-  }, [router]);
+  }, [router, isRedirecting]);
 
   // Redirect to dashboard when doctor logs in
   useEffect(() => {
@@ -124,6 +132,7 @@ export default function DoctorDashboard() {
 
   const handleLogout = () => {
     AuthService.logout();
+    setIsRedirecting(true);
     router.replace('/login');
   };
 
