@@ -124,7 +124,7 @@ export default function DoctorDashboard() {
 
   const handleLogout = () => {
     AuthService.logout();
-    router.push('/login');
+    router.replace('/login');
   };
 
   const handleConfirmAppointment = async (appointmentId: number) => {
