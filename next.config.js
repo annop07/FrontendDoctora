@@ -11,12 +11,20 @@ const nextConfig = {
   },
   // Ensure proper handling of API routes
   async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/:path*`,
-      },
-    ];
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+    
+    // Only add rewrites if the API base URL is properly configured
+    if (apiBaseUrl && apiBaseUrl !== 'undefined') {
+      return [
+        {
+          source: '/api/:path*',
+          destination: `${apiBaseUrl}/api/:path*`,
+        },
+      ];
+    }
+    
+    // Return empty array if no API base URL is configured
+    return [];
   },
 }
 
