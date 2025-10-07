@@ -328,11 +328,17 @@ const DoctorDetailWireframes = () => {
   const handleBookingConfirm = () => {
     if (!selectedTimeSlot || !doctor) return;
 
+    // ✅ แปลงเป็น local date string (YYYY-MM-DD) เพื่อป้องกัน timezone issue
+    const year = selectedDate.getFullYear();
+    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const day = String(selectedDate.getDate()).padStart(2, '0');
+    const localDateString = `${year}-${month}-${day}`;
+
     const draft = JSON.parse(sessionStorage.getItem('bookingDraft') || '{}');
     draft.selectedDoctor = doctor.doctorName;
-    draft.selectedDoctorId = doctor.id; // เพิ่ม doctorId
+    draft.selectedDoctorId = doctor.id;
     draft.depart = doctor.specialty.name;
-    draft.selectedDate = selectedDate.toISOString();
+    draft.selectedDate = localDateString; // ✅ ใช้ local date string แทน ISO
     draft.selectedTime = selectedTimeSlot;
     sessionStorage.setItem('bookingDraft', JSON.stringify(draft));
 

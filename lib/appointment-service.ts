@@ -274,26 +274,41 @@ export class AppointmentService {
     patientData: any,
     doctorId: number
   ): CreateAppointmentWithPatientInfoRequest {
-    // Parse date and time (fix timezone issue)
-    const appointmentDate = new Date(bookingData.selectedDate);
+    // ✅ Parse date correctly (handle both ISO and local date strings)
+    let appointmentDate: Date;
+    
+    if (bookingData.selectedDate.includes('T')) {
+      // ISO format: 2025-10-08T00:00:00.000Z
+      appointmentDate = new Date(bookingData.selectedDate);
+    } else {
+      // Local date format: 2025-10-08
+      const [year, month, day] = bookingData.selectedDate.split('-').map(Number);
+      appointmentDate = new Date(year, month - 1, day); // month is 0-indexed
+    }
+
+    // Parse time range (e.g., "9:00-10:00")
     const timeRange = bookingData.selectedTime || "9:00-10:00";
     const startTime = timeRange.split('-')[0].trim();
     const [hour, minute] = startTime.split(':').map(Number);
 
-    // Create date-time string in local timezone format: YYYY-MM-DDTHH:mm:ss
+    // ✅ Create local datetime string: YYYY-MM-DDTHH:mm:ss (NO timezone)
     const year = appointmentDate.getFullYear();
     const month = String(appointmentDate.getMonth() + 1).padStart(2, '0');
     const day = String(appointmentDate.getDate()).padStart(2, '0');
     const hourStr = String(hour).padStart(2, '0');
-    const minuteStr = String(minute).padStart(2, '0');
+    const minuteStr = String(minute || 0).padStart(2, '0');
 
     const localDateTimeString = `${year}-${month}-${day}T${hourStr}:${minuteStr}:00`;
+
+    console.log('🔵 [convertBookingDataToRequest] Input date:', bookingData.selectedDate);
+    console.log('🔵 [convertBookingDataToRequest] Parsed date:', appointmentDate);
+    console.log('🔵 [convertBookingDataToRequest] Output datetime:', localDateTimeString);
 
     return {
       doctorId: doctorId,
       appointmentDateTime: localDateTimeString,
       durationMinutes: 30,
-      notes: bookingData.symptoms || "",  // ✅ ใช้ symptoms สำหรับ notes
+      notes: bookingData.symptoms || "",
 
       // Patient info
       patientPrefix: patientData.prefix || "",
@@ -307,8 +322,8 @@ export class AppointmentService {
       patientEmail: patientData.email || "",
 
       // Additional info
-      symptoms: bookingData.symptoms || "",  // ✅ อาการจริง
-      bookingType: bookingData.bookingType || 'manual',  // ✅ ประเภทการจอง
+      symptoms: bookingData.symptoms || "",
+      bookingType: bookingData.bookingType || 'manual',
     };
   }
 
