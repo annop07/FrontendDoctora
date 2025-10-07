@@ -1,6 +1,12 @@
 import type { LoginRequest, RegisterRequest, LoginResponse, MessageResponse, User } from "@/types/auth";
 
+// ⚠️ ตรวจสอบให้แน่ใจว่า URL ถูกต้อง
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082';
+
+// Log เพื่อ debug (ลบออกได้หลัง deploy สำเร็จ)
+if (typeof window !== 'undefined') {
+  console.log('🔧 API_BASE_URL:', API_BASE_URL);
+}
 
 export const API_ENDPOINTS = {
   REGISTER: `${API_BASE_URL}/api/auth/register`,
@@ -10,64 +16,79 @@ export const API_ENDPOINTS = {
 
 export class AuthService {
   static async register(data: RegisterRequest): Promise<MessageResponse> {
-    console.log('Making request to:', API_ENDPOINTS.REGISTER);
-    console.log('Request data:', data);
+    const url = API_ENDPOINTS.REGISTER;
+    console.log('📡 Making request to:', url);
+    console.log('📦 Request data:', data);
     
     try {
-      // Send empty strings for firstName and lastName if not provided
       const payload = {
         email: data.email,
         password: data.password,
         firstName: data.firstName || '',
-        lastName: data.lastName || ''
+        lastName: data.lastName || '',
+        role: 'PATIENT' // Default role
       };
 
-      const response = await fetch(API_ENDPOINTS.REGISTER, {
+      console.log('📤 Sending payload:', payload);
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
+        // เพิ่ม mode และ credentials สำหรับ CORS
+        mode: 'cors',
+        credentials: 'include',
       });
 
-      console.log('Response status:', response.status);
+      console.log('📨 Response status:', response.status);
+      console.log('📨 Response headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
-        let errorMessage = 'Registration failed';
+        let errorMessage = `Registration failed: ${response.status} ${response.statusText}`;
+        
         try {
           const errorData = await response.json();
+          console.error('❌ Error data:', errorData);
           errorMessage = errorData.message || errorMessage;
         } catch (jsonError) {
-          console.error('Error parsing error response as JSON:', jsonError);
-          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          console.error('❌ Could not parse error as JSON:', jsonError);
+          const errorText = await response.text();
+          console.error('❌ Error text:', errorText);
+          errorMessage = errorText || errorMessage;
         }
+        
         throw new Error(errorMessage);
       }
 
-      const responseText = await response.text();
-      console.log('Response text:', responseText);
+      const responseData = await response.json();
+      console.log('✅ Success:', responseData);
+      return responseData;
       
-      if (!responseText) {
-        throw new Error('Empty response from server');
+    } catch (error) {
+      console.error('💥 Fetch error:', error);
+      
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Cannot connect to server. Please check if the backend is running.');
       }
       
-      return JSON.parse(responseText);
-    } catch (fetchError) {
-      console.error('Fetch error:', fetchError);
-      if (fetchError instanceof TypeError && fetchError.message.includes('fetch')) {
-        throw new Error('Cannot connect to server. Is the backend running on port 8082?');
-      }
-      throw fetchError;
+      throw error;
     }
   }
 
   static async login(data: LoginRequest): Promise<LoginResponse> {
-    const response = await fetch(API_ENDPOINTS.LOGIN, {
+    const url = API_ENDPOINTS.LOGIN;
+    console.log('📡 Login request to:', url);
+
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(data),
+      mode: 'cors',
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -87,7 +108,10 @@ export class AuthService {
     const response = await fetch(API_ENDPOINTS.ME, {
       headers: {
         'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
       },
+      mode: 'cors',
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -114,7 +138,7 @@ export class AuthService {
   static removeToken(): void {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('authToken');
-      localStorage.removeItem('user'); // Also remove old user data
+      localStorage.removeItem('user');
     }
   }
 

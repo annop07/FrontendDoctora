@@ -15,6 +15,7 @@ export default function RegisterPage() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [debugInfo, setDebugInfo] = useState(''); // เพิ่ม debug info
   const router = useRouter();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -28,8 +29,9 @@ export default function RegisterPage() {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setDebugInfo(''); // Clear debug info
 
-    // Validate password
+    // Validate
     if (formData.password.length < 6) {
       setError('Password must be at least 6 characters');
       setIsLoading(false);
@@ -37,17 +39,29 @@ export default function RegisterPage() {
     }
 
     try {
-      await AuthService.register({
+      console.log('🚀 Starting registration...');
+      setDebugInfo('Sending request to backend...');
+      
+      const result = await AuthService.register({
         email: formData.email,
         password: formData.password,
-        firstName: '', // Send empty string
-        lastName: ''   // Send empty string
+        firstName: '',
+        lastName: ''
       });
 
-      // Redirect to login page
-      router.push('/login?message=Registration successful! Please login.');
+      console.log('✅ Registration successful:', result);
+      setDebugInfo('Registration successful! Redirecting...');
+
+      // Redirect to login
+      setTimeout(() => {
+        router.push('/login?message=Registration successful! Please login.');
+      }, 1000);
+      
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการสมัครสมาชิก');
+      console.error('❌ Registration failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการสมัครสมาชิก';
+      setError(errorMessage);
+      setDebugInfo(`Error: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
@@ -57,17 +71,29 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
 
-      {/* Main Content */}
       <main className="max-w-6xl mx-auto px-6 py-6">
-        {/* Banner Component */}
         <Banner />
         
-        {/* Register Form */}
         <div className="max-w-md mx-auto mt-8">
           <div className="text-center mb-6">
             <h2 className="text-2xl font-bold text-gray-800 mb-2">สร้างบัญชีของท่าน</h2>
             <p className="text-gray-600 text-sm">กรอกข้อมูลเพื่อสร้างบัญชีใหม่</p>
           </div>
+          
+          {/* Debug Info - แสดงเฉพาะตอน development */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
+              <strong>Debug Info:</strong>
+              <br />
+              API URL: {process.env.NEXT_PUBLIC_API_BASE_URL || 'Not set'}
+              {debugInfo && (
+                <>
+                  <br />
+                  Status: {debugInfo}
+                </>
+              )}
+            </div>
+          )}
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -96,8 +122,8 @@ export default function RegisterPage() {
             </div>
 
             {error && (
-              <div className="text-center">
-                <p className="text-red-500 text-sm mb-4">{error}</p>
+              <div className="p-3 bg-red-50 border border-red-200 rounded">
+                <p className="text-red-600 text-sm">{error}</p>
               </div>
             )}
 
@@ -124,7 +150,6 @@ export default function RegisterPage() {
         </div>
       </main>
 
-      {/* Footer Component */}
       <Footer />
     </div>
   );
