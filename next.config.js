@@ -11,10 +11,15 @@ const nextConfig = {
   },
   // Ensure proper handling of API routes
   async rewrites() {
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+    let apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
     
     // Only add rewrites if the API base URL is properly configured
     if (apiBaseUrl && apiBaseUrl !== 'undefined') {
+      // Ensure the URL has the proper protocol
+      if (!apiBaseUrl.startsWith('http://') && !apiBaseUrl.startsWith('https://')) {
+        apiBaseUrl = `https://${apiBaseUrl}`;
+      }
+      
       return [
         {
           source: '/api/:path*',
