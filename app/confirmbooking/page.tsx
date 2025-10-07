@@ -9,7 +9,7 @@ import { AppointmentService } from "@/lib/appointment-service";
 import { useAuth } from "@/context/auth-context";
 import {
   CheckCircle, User, Calendar, Clock, Stethoscope,
-  FileCheck, ArrowLeft, Download, Phone, Mail, CreditCard, Globe
+  FileCheck, ArrowLeft, Download, Phone, Mail, CreditCard, Globe, FileText
 } from "lucide-react";
 
 // Add Thai font support
@@ -27,7 +27,8 @@ interface PatientData {
   email?: string;
 }
 
-function mapIllnessLabel(val?: string) {
+// ✅ แก้ไขฟังก์ชันนี้ให้แสดงข้อความที่ถูกต้อง
+function mapBookingTypeLabel(val?: string) {
   if (!val) return "-";
   const map: Record<string, string> = {
     auto: "เลือกแพทย์ให้ฉัน",
@@ -44,7 +45,11 @@ export default function ConfirmPage() {
   const { user } = useAuth();
   const [patient, setPatient] = useState<PatientData>({});
   const [depart, setDepart] = useState("");
-  const [illness, setIllness] = useState("");
+  
+  // ✅ แยกเป็น 2 ตัวแปร
+  const [bookingType, setBookingType] = useState("");  // 'auto' หรือ 'manual'
+  const [symptoms, setSymptoms] = useState("");  // อาการจริงๆ
+  
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState("");
   const [doctor, setDoctor] = useState("");
@@ -60,7 +65,7 @@ export default function ConfirmPage() {
     return String(nextQueue).padStart(3, "0");
   };
 
-  // ✅ โหลดค่าทั้งหมดจาก sessionStorage (ปรับตรงนี้อย่างเดียว)
+  // ✅ โหลดค่าทั้งหมดจาก sessionStorage
   useEffect(() => {
     const patientData = JSON.parse(sessionStorage.getItem("patientData") || "{}");
     const bookingData = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || "{}");
@@ -68,9 +73,9 @@ export default function ConfirmPage() {
     setPatient(patientData);
     setDepart(bookingData.depart || "");
 
-    // รองรับทั้ง illness และ selection (auto/manual)
-    const illnessValue: string = bookingData.illness ?? bookingData.selection ?? "";
-    setIllness(illnessValue);
+    // ✅ โหลด bookingType และ symptoms แยกกัน
+    setBookingType(bookingData.bookingType || "");
+    setSymptoms(bookingData.symptoms || "");
 
     setDoctor(bookingData.selectedDoctor || "");
     setDoctorId(bookingData.selectedDoctorId || null);
@@ -200,10 +205,15 @@ export default function ConfirmPage() {
 
       const appointmentFields: [string, string][] = [
         [`แผนก / Department`, depart || "-"],
-        [`ประเภท / Type`, mapIllnessLabel(illness)],
+        [`ประเภทการจอง / Booking Type`, mapBookingTypeLabel(bookingType)],
         [`แพทย์ / Doctor`, doctor || "-"],
         [`วันที่และเวลา / Date & Time`, `${selectedDate} ${selectedTime}`]
       ];
+
+      // ✅ เพิ่มอาการถ้ามี
+      if (symptoms) {
+        appointmentFields.push([`อาการ / Symptoms`, symptoms]);
+      }
 
       appointmentFields.forEach(([label, value]) => {
         const text = `${label}: ${value}`;
@@ -347,7 +357,8 @@ export default function ConfirmPage() {
           patientName: `${patient.prefix} ${patient.firstName} ${patient.lastName}`,
           doctorName: doctor || response.appointment.doctor.doctorName,
           department: depart || response.appointment.doctor.specialty.name,
-          appointmentType: mapIllnessLabel(illness),
+          bookingType: mapBookingTypeLabel(bookingType),
+          symptoms: symptoms,
           date: selectedDate,
           time: selectedTime,
           status: AppointmentService.getStatusText(response.appointment.status),
@@ -509,8 +520,8 @@ export default function ConfirmPage() {
                   <div className="flex items-center space-x-3">
                     <FileCheck className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                     <div>
-                      <p className="text-sm text-gray-600">ประเภท</p>
-                      <p className="font-semibold text-gray-800">{mapIllnessLabel(illness)}</p>
+                      <p className="text-sm text-gray-600">ประเภทการจอง</p>
+                      <p className="font-semibold text-gray-800">{mapBookingTypeLabel(bookingType)}</p>
                     </div>
                   </div>
 
@@ -529,6 +540,17 @@ export default function ConfirmPage() {
                       <p className="font-semibold text-gray-800">{selectedDate} {selectedTime}</p>
                     </div>
                   </div>
+
+                  {/* ✅ แสดงอาการ (ถ้ามี) */}
+                  {symptoms && (
+                    <div className="flex items-start space-x-3 md:col-span-2">
+                      <FileText className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-1" />
+                      <div>
+                        <p className="text-sm text-gray-600">อาการและปัญหาสุขภาพ</p>
+                        <p className="font-semibold text-gray-800">{symptoms}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -541,7 +563,7 @@ export default function ConfirmPage() {
             )}
 
             {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-emerald-100">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-emerald-100 button-container">
               <button
                 onClick={() => router.back()}
                 className="flex items-center gap-2 px-8 py-4 bg-white text-emerald-700 rounded-2xl border-2 border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50 transition-all duration-200 shadow-md hover:shadow-lg font-semibold"

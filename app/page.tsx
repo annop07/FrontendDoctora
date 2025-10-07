@@ -32,41 +32,43 @@ export default function LandingPage() {
     }
   }, [isClient]);
 
-  // ⬇️ เซฟค่า illness ลง draft ทุกครั้งที่ผู้ใช้เปลี่ยนตัวเลือก
-  useEffect(() => {
-    if (!selectedOption || !isClient) return;
-    const draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
-    sessionStorage.setItem(
-      DRAFT_KEY,
-      JSON.stringify({
-        ...draft,
-        illness: selectedOption,     // "auto" | "manual"
-        // เคลียร์ค่าจองเก่าที่อาจค้าง
-        selectedDoctor: '',
-        selectedDate: '',
-        selectedTime: '',
-      })
-    );
-  }, [selectedOption, isClient]);
+  // แยกเก็บ bookingType (auto/manual) และ symptoms (อาการ)
+useEffect(() => {
+  if (!selectedOption || !isClient) return;
+  const draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
+  sessionStorage.setItem(
+    DRAFT_KEY,
+    JSON.stringify({
+      ...draft,
+      bookingType: selectedOption,     // ✅ เก็บว่าเป็น auto หรือ manual
+      // ไม่ต้องเซ็ต illness ตรงนี้
+      selectedDoctor: '',
+      selectedDate: '',
+      selectedTime: '',
+    })
+  );
+}, [selectedOption, isClient]);
 
-  const handleNext = () => {
-    if (!selectedOption) {
-      alert('กรุณาเลือกตัวเลือกก่อนดำเนินการต่อ');
-      return;
-    }
+const handleNext = () => {
+  if (!selectedOption) {
+    alert('กรุณาเลือกตัวเลือกก่อนดำเนินการต่อ');
+    return;
+  }
 
-    // ถ้ายังไม่ล็อกอินให้เด้ง modal
-    if (!isAuthenticated) {
-      setShowLoginModal(true);
-      return;
-    }
+  if (!isAuthenticated) {
+    setShowLoginModal(true);
+    return;
+  }
 
-    // ⬇️ กันเคสผู้ใช้กดเร็ว: ยืนยันเซฟ illness อีกรอบก่อนนำทาง
-    const draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, illness: selectedOption }));
+  // ✅ เซ็ต bookingType อีกครั้งก่อน navigate
+  const draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
+  sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ 
+    ...draft, 
+    bookingType: selectedOption 
+  }));
 
-    router.push(`/depart?selection=${selectedOption}`);
-  };
+  router.push(`/depart?selection=${selectedOption}`);
+};
 
   // ---- ส่วนเดิมทั้งหมดด้านล่างไม่เปลี่ยน ----
 

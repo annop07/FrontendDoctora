@@ -266,7 +266,8 @@ export class AppointmentService {
   }
 
   /**
-   * Convert booking draft data to API request format
+   * ✅ Convert booking draft data to API request format
+   * แก้ไขให้รองรับ bookingType และ symptoms แยกกัน
    */
   static convertBookingDataToRequest(
     bookingData: any,
@@ -292,7 +293,7 @@ export class AppointmentService {
       doctorId: doctorId,
       appointmentDateTime: localDateTimeString,
       durationMinutes: 30,
-      notes: bookingData.symptoms || bookingData.illness || "",
+      notes: bookingData.symptoms || "",  // ✅ ใช้ symptoms สำหรับ notes
 
       // Patient info
       patientPrefix: patientData.prefix || "",
@@ -306,8 +307,8 @@ export class AppointmentService {
       patientEmail: patientData.email || "",
 
       // Additional info
-      symptoms: bookingData.symptoms || bookingData.illness || "",
-      bookingType: bookingData.illness === 'auto' ? 'auto' : 'manual',
+      symptoms: bookingData.symptoms || "",  // ✅ อาการจริง
+      bookingType: bookingData.bookingType || 'manual',  // ✅ ประเภทการจอง
     };
   }
 

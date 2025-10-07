@@ -4,12 +4,12 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { patientAction } from "@/utils/action";
 import { useRouter } from "next/navigation";
-import { User, Phone, Mail, Calendar, CreditCard, Globe, ArrowLeft, ArrowRight, UserCheck, AlertTriangle, Shield } from "lucide-react";
+import { User, Phone, Mail, Calendar, CreditCard, Globe, ArrowLeft, ArrowRight, UserCheck, Shield } from "lucide-react";
 
 const PatientForm = () => {
 
     const router = useRouter();
-    const [consentChecked, setConsentChecked] = useState(false); // state สำหรับเช็ค checkbox
+    const [consentChecked, setConsentChecked] = useState(false);
 
     const backButton = () => {
         router.push("/booking");
@@ -21,7 +21,7 @@ const PatientForm = () => {
 
         // ตรวจสอบว่า form ครบทุก required field
         if (!form.checkValidity()) {
-            form.reportValidity(); // แสดงข้อความเตือน
+            form.reportValidity();
             return;
         }
 
@@ -36,10 +36,9 @@ const PatientForm = () => {
         if (data.birthDay && data.birthMonth && data.birthYear) {
             const day = data.birthDay.padStart(2, '0');
             const month = data.birthMonth.padStart(2, '0');
-            const yearAD = parseInt(data.birthYear) - 543; // แปลง พ.ศ. เป็น ค.ศ.
+            const yearAD = parseInt(data.birthYear) - 543;
             data.dob = `${yearAD}-${month}-${day}`;
 
-            // ลบ field แยกออก
             delete data.birthDay;
             delete data.birthMonth;
             delete data.birthYear;
@@ -48,7 +47,7 @@ const PatientForm = () => {
         // เก็บลง sessionStorage
         sessionStorage.setItem("patientData", JSON.stringify(data));
 
-    // ไปหน้าคอนเฟิร์ม
+        // ไปหน้าคอนเฟิร์ม
         router.push("/confirmbooking");
   };
 
@@ -271,8 +270,6 @@ const PatientForm = () => {
                 </span>
               </label>
             </div>
-
-            {/* Warning Section */}
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4">

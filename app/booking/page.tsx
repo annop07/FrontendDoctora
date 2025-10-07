@@ -3,13 +3,11 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useRef, Suspense } from "react"; 
-import { Slot } from "@radix-ui/react-slot"
 import Schedule from "@/components/Schedule";
 import { useRouter } from "next/navigation";
 import { Clock, Calendar, FileText, ArrowLeft, ArrowRight, Stethoscope, User } from "lucide-react";
 
 const DRAFT_KEY = "bookingDraft";
-
 
 // Doctor interface
 interface Doctor {
@@ -31,15 +29,19 @@ function BookingPageContent() {
   const [depart,setDepart] = useState<string>(searchParams.get("depart") ?? "");
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [illness,setIllness] = useState("");
+  
+  // ✅ แยกเป็น 2 ตัวแปร
+  const [bookingType, setBookingType] = useState<string>("");  // 'auto' หรือ 'manual'
+  const [symptoms, setSymptoms] = useState("");  // อาการจริงๆ
+  
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [isLoadingDoctor, setIsLoadingDoctor] = useState(false);
   const [doctorSelectionError, setDoctorSelectionError] = useState<string | null>(null);
   const previousDateRef = useRef<Date | null>(null);
 
-  //เก็บstateตอนกดกลับจากหน้า patientForm
   const selectionParam = searchParams.get("selection");
 
+  // ✅ เก็บ state ตอนกดกลับจากหน้า patientForm
   useEffect(() => {
     const raw = sessionStorage.getItem(DRAFT_KEY);
     const stored = raw ? JSON.parse(raw) : {};
@@ -48,33 +50,34 @@ function BookingPageContent() {
     if (!selectedTime && stored.selectedTime) setSelectedTime(stored.selectedTime);
     if (!selectedDate && stored.selectedDate) setSelectedDate(new Date(stored.selectedDate));
 
-    if (!illness && stored.illness) {
-      setIllness(stored.illness);
-    } else if (!stored.illness && selectionParam) {
-      setIllness(selectionParam);
+    // ✅ โหลด bookingType และ symptoms แยกกัน
+    if (!bookingType && stored.bookingType) {
+      setBookingType(stored.bookingType);
+    } else if (!stored.bookingType && selectionParam) {
+      setBookingType(selectionParam);
     }
-  }, [depart, selectedTime, selectedDate, illness, selectionParam]);
+    
+    if (!symptoms && stored.symptoms) {
+      setSymptoms(stored.symptoms);
+    }
+  }, [depart, selectedTime, selectedDate, bookingType, symptoms, selectionParam]);
 
-  // Auto select doctor when illness is 'auto' - ใช้ Smart Selection API
+  // Auto select doctor when bookingType is 'auto'
   useEffect(() => {
     const autoSelectDoctor = async () => {
-      // เช็คว่าวันที่เปลี่ยนหรือไม่
       const dateChanged = selectedDate !== previousDateRef.current;
 
       // ✅ รอให้ผู้ใช้เลือกวันที่ก่อน และเลือกใหม่เมื่อวันที่เปลี่ยน
-      if (illness === 'auto' && depart && selectedDate && dateChanged && !isLoadingDoctor) {
-        // บันทึกวันที่ปัจจุบัน
+      if (bookingType === 'auto' && depart && selectedDate && dateChanged && !isLoadingDoctor) {
         previousDateRef.current = selectedDate;
-
-        // เคลียร์ state เก่า
         setSelectedDoctor(null);
         setDoctorSelectionError(null);
         setIsLoadingDoctor(true);
+        
         try {
           console.log('🎯 [Auto Select] Calling smart-select API for specialty:', depart);
           console.log('🎯 [Auto Select] Selected date:', selectedDate);
 
-          // Build URL with date parameter (required for auto mode)
           const year = selectedDate.getFullYear();
           const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
           const day = String(selectedDate.getDate()).padStart(2, '0');
@@ -83,7 +86,6 @@ function BookingPageContent() {
           let url = `http://localhost:8082/api/doctors/smart-select?specialty=${encodeURIComponent(depart)}&date=${dateString}`;
           console.log('🎯 [Auto Select] Using date for availability check:', dateString);
 
-          // เรียก Smart Selection API ใหม่
           const response = await fetch(url);
 
           if (response.ok) {
@@ -91,11 +93,9 @@ function BookingPageContent() {
             console.log('✅ [Auto Select] Response:', data);
 
             if (data.doctor) {
-              // ระบบเลือกแพทย์ให้แล้ว
               setSelectedDoctor(data.doctor);
-              setDoctorSelectionError(null); // เคลียร์ error
+              setDoctorSelectionError(null);
 
-              // บันทึกลง sessionStorage
               const existingRaw = sessionStorage.getItem(DRAFT_KEY);
               const existing = existingRaw ? JSON.parse(existingRaw) : {};
               sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
@@ -106,7 +106,6 @@ function BookingPageContent() {
 
               console.log(`🎯 [Auto Select] Selected: ${data.doctor.doctorName} (ID: ${data.doctor.id})`);
             } else {
-              // ไม่มีแพทย์ว่างในวันที่เลือก
               console.warn('⚠️ [Auto Select] No doctor available:', data.message);
               setSelectedDoctor(null);
               setDoctorSelectionError(data.message || 'ไม่มีแพทย์ว่างในวันที่เลือก');
@@ -125,8 +124,9 @@ function BookingPageContent() {
     };
 
     autoSelectDoctor();
-  }, [illness, depart, isLoadingDoctor, selectedDate]); // ลบ selectedDoctor ออก!
+  }, [bookingType, depart, isLoadingDoctor, selectedDate]);
 
+  // ✅ บันทึกข้อมูลทั้ง bookingType และ symptoms
   useEffect(() => {
     const existingRaw = sessionStorage.getItem(DRAFT_KEY);
     const existing = existingRaw ? JSON.parse(existingRaw) : {};
@@ -138,26 +138,26 @@ function BookingPageContent() {
             depart,
             selectedTime,
             selectedDate: selectedDate?.toISOString() ?? null,
-            illness,
+            bookingType,  // ✅ เก็บ bookingType
+            symptoms,     // ✅ เก็บอาการ
         })
     );
-  }, [depart,selectedTime,selectedDate,illness]);
+  }, [depart, selectedTime, selectedDate, bookingType, symptoms]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    // บันทึกข้อมูลลง sessionStorage
     const existingRaw = sessionStorage.getItem(DRAFT_KEY);
     const existing = existingRaw ? JSON.parse(existingRaw) : {};
 
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
       ...existing,
-      symptoms: illness,
+      symptoms: symptoms,  // ✅ เก็บอาการจริง
+      bookingType: bookingType,  // ✅ เก็บประเภทการจอง
       selectedDate: selectedDate?.toISOString(),
       selectedTime: selectedTime
     }));
 
-    // ไปหน้าถัดไป
     router.push('/patientForm');
   };
 
@@ -177,8 +177,6 @@ function BookingPageContent() {
   const backButton = () =>{
     router.push("/depart");
   }
-  
- 
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
@@ -204,8 +202,18 @@ function BookingPageContent() {
           <p className="font-bold text-lg">แผนก{depart}</p>
         </div>
 
+        {/* ✅ Show booking type badge */}
+        {bookingType && (
+          <div className="inline-flex items-center space-x-2 bg-blue-500 text-white px-6 py-3 rounded-full shadow-lg ml-4">
+            <div className="w-2 h-2 bg-white rounded-full"></div>
+            <p className="font-bold text-lg">
+              {bookingType === 'auto' ? 'โหมด: เลือกแพทย์ให้ฉัน' : 'โหมด: เลือกแพทย์เอง'}
+            </p>
+          </div>
+        )}
+
         {/* Auto Selected Doctor Display */}
-        {illness === 'auto' && (
+        {bookingType === 'auto' && (
           <div className="mt-6">
             {isLoadingDoctor ? (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md">
@@ -326,16 +334,16 @@ function BookingPageContent() {
             <input type="hidden" name="time" value={selectedTime ?? ""} />
             <input type="hidden" name="date" value={selectedDate?.toISOString() ?? ""} />
 
-            {/* Symptom Input */}
+            {/* ✅ Symptom Input - ใช้ symptoms แทน illness */}
             <div className="space-y-3">
               <div className="flex items-center space-x-2">
                 <FileText className="w-6 h-6 text-emerald-600" />
                 <label className="text-lg font-semibold text-gray-800">อาการและปัญหาสุขภาพ</label>
               </div>
               <textarea
-                 name="illness"
-                value={illness === "auto" ? "" : illness}
-                onChange={(e) => setIllness(e.target.value)}
+                name="symptoms"
+                value={symptoms}
+                onChange={(e) => setSymptoms(e.target.value)}
                 rows={4}
                 className="w-full p-4 border-2 border-emerald-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200 bg-white/90 backdrop-blur-sm"
                 placeholder="กรุณาระบุอาการและปัญหาสุขภาพของคุณโดยละเอียด..."
@@ -356,19 +364,19 @@ function BookingPageContent() {
               <button
                 type="submit"
                 disabled={
-                  illness === 'auto' && (
+                  bookingType === 'auto' && (
                     isLoadingDoctor ||
                     doctorSelectionError !== null ||
                     !selectedDoctor
                   )
                 }
                 title={
-                  illness === 'auto' && (isLoadingDoctor || doctorSelectionError !== null || !selectedDoctor)
+                  bookingType === 'auto' && (isLoadingDoctor || doctorSelectionError !== null || !selectedDoctor)
                     ? 'กรุณารอให้ระบบเลือกแพทย์ หรือเปลี่ยนวันที่อื่น'
                     : ''
                 }
                 className={`flex items-center gap-2 px-8 py-4 rounded-2xl transition-all duration-200 shadow-lg font-semibold ${
-                  illness === 'auto' && (isLoadingDoctor || doctorSelectionError !== null || !selectedDoctor)
+                  bookingType === 'auto' && (isLoadingDoctor || doctorSelectionError !== null || !selectedDoctor)
                     ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
                     : 'bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-xl transform hover:-translate-y-0.5'
                 }`}
