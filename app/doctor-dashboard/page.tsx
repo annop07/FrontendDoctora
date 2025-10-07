@@ -53,7 +53,7 @@ export default function DoctorDashboard() {
         if (!user || user.role !== 'DOCTOR') {
           console.log('❌ Not a doctor or not logged in, redirecting...');
           console.log('❌ User:', user);
-          router.push('/login');
+          router.replace('/login');
           return;
         }
 
@@ -61,7 +61,7 @@ export default function DoctorDashboard() {
         fetchDashboardData();
       } catch (error) {
         console.error('❌ Auth check failed:', error);
-        router.push('/login');
+        router.replace('/login');
       }
     };
 
