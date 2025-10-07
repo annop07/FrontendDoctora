@@ -111,10 +111,10 @@ const DoctorForm: React.FC<DoctorFormProps> = ({
         
         // Check if trying to assign to the same specialty
         if (existingDoctorAssignment.specialty.id.toString() === formData.specialtyId) {
-          setSubmitError(`Doctor ${selectedUser?.firstName} ${selectedUser?.lastName} is already assigned to this specialty: ${assignedSpecialty?.name || existingDoctorAssignment.specialty.name}.`);
+          setSubmitError(`${selectedUser?.firstName} ${selectedUser?.lastName} is already assigned to this specialty: ${assignedSpecialty?.name || existingDoctorAssignment.specialty.name}.`);
         } else {
           // Trying to assign to a different specialty
-          setSubmitError(`Doctor ${selectedUser?.firstName} ${selectedUser?.lastName} is already assigned to another specialty: ${assignedSpecialty?.name || existingDoctorAssignment.specialty.name}. A doctor can only be assigned to one specialty at a time. Please choose a different user.`);
+          setSubmitError(`${selectedUser?.firstName} ${selectedUser?.lastName} is already assigned to another specialty: ${assignedSpecialty?.name || existingDoctorAssignment.specialty.name}. A user can only be assigned to one specialty at a time. Please choose a different user.`);
         }
         setLoading(false);
         return;
@@ -180,11 +180,11 @@ const DoctorForm: React.FC<DoctorFormProps> = ({
     }
   };
 
-  // Filter users who are not already doctors and have PATIENT role
+  // Filter users who are not already doctors
+  // Show all users regardless of role, but exclude those already assigned as doctors
   const availableUsers = users.filter(user => {
     const isAlreadyDoctor = doctors.some(doc => doc.email === user.email);
-    const isPatientRole = user.role === 'PATIENT';
-    return !isAlreadyDoctor && isPatientRole;
+    return !isAlreadyDoctor;
   });
 
   if (!isOpen) return null;
@@ -223,7 +223,7 @@ const DoctorForm: React.FC<DoctorFormProps> = ({
             )}
             {availableUsers.length === 0 && (
               <p className="text-sm text-yellow-600 mt-1">
-                No PATIENT users available. All PATIENT users are already assigned as doctors or no PATIENT users exist. Please create a new PATIENT user first.
+                No users available to promote. All users are already assigned as doctors. Please create a new user account first.
               </p>
             )}
             {formData.userId && (() => {
