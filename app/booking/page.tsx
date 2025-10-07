@@ -2,7 +2,7 @@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState, useRef } from "react"; 
+import { useEffect, useState, useRef, Suspense } from "react"; 
 import { Slot } from "@radix-ui/react-slot"
 import Schedule from "@/components/Schedule";
 import { useRouter } from "next/navigation";
@@ -25,7 +25,7 @@ interface Doctor {
   bio?: string;
 }
 
-export default function BookingPage() {
+function BookingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [depart,setDepart] = useState<string>(searchParams.get("depart") ?? "");
@@ -383,5 +383,24 @@ export default function BookingPage() {
       
       <Footer />
     </div>
+  );
+}
+
+export default function BookingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
+        <Navbar />
+        <div className="max-w-6xl mx-auto px-6 py-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
+            <p className="text-emerald-700 font-medium">กำลังโหลด...</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    }>
+      <BookingPageContent />
+    </Suspense>
   );
 }

@@ -70,11 +70,18 @@ export default function DoctorDashboard() {
 
   // Redirect to dashboard when doctor logs in
   useEffect(() => {
-    const user = AuthService.getCurrentUser();
-    if (user && user.role === 'DOCTOR') {
-      // Already on dashboard, no need to redirect
-      console.log('✅ Doctor is on dashboard');
-    }
+    const checkUser = async () => {
+      try {
+        const user = await AuthService.getCurrentUser();
+        if (user && user.role === 'DOCTOR') {
+          // Already on dashboard, no need to redirect
+          console.log('✅ Doctor is on dashboard');
+        }
+      } catch (error) {
+        console.error('Failed to get current user:', error);
+      }
+    };
+    checkUser();
   }, []);
 
   const fetchDashboardData = async () => {

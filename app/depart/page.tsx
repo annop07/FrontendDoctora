@@ -1,7 +1,7 @@
 "use client";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Stethoscope, ArrowRight, ArrowLeft, Heart, Activity, Brain, Zap, Baby, UserCheck, Scissors, Shield, Waves, Bone, HeartHandshake, Users, Ear, Sparkles, HeartPulse, User, Radiation } from "lucide-react";
 
@@ -87,7 +87,7 @@ const colorMapping: Record<string, string> = {
   "default": "from-emerald-500 to-teal-600"
 };
 
-export default function DepartPage() {
+function DepartPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -385,5 +385,24 @@ export default function DepartPage() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function DepartPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
+        <Navbar />
+        <div className="max-w-6xl mx-auto px-6 py-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
+            <p className="text-emerald-700 font-medium">กำลังโหลด...</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    }>
+      <DepartPageContent />
+    </Suspense>
   );
 }

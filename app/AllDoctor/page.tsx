@@ -2,7 +2,7 @@
 
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, Filter, Calendar as CalendarIcon, Clock, User, Stethoscope, Building, CheckCircle, Sun, Settings, RotateCcw, ArrowLeft, ArrowRight, Sunset } from "lucide-react";
 
@@ -240,7 +240,7 @@ function Calendar({ onChange }: { onChange?: (d: Date | undefined) => void }) {
 }
 
 /** ==================== Main Component ==================== */
-export default function DoctorSearchPage() {
+function DoctorSearchPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -794,5 +794,24 @@ export default function DoctorSearchPage() {
       
       <Footer />
     </div>
+  );
+}
+
+export default function DoctorSearchPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
+        <Navbar />
+        <div className="max-w-6xl mx-auto px-6 py-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
+            <p className="text-emerald-700 font-medium">กำลังโหลด...</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    }>
+      <DoctorSearchPageContent />
+    </Suspense>
   );
 }
