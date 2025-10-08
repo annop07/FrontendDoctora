@@ -75,6 +75,7 @@ const getCurrentWeekDates = (): Date[] => {
   return weekDates;
 };
 
+// ✅ FIX 5: Update generateWeeklySchedule to handle day of week correctly
 const generateWeeklySchedule = (
   viewStart: Date,
   availabilities: Availability[],
@@ -82,6 +83,10 @@ const generateWeeklySchedule = (
 ): DaySchedule[] => {
   const schedule: DaySchedule[] = [];
   const dayNames = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+  
+  console.log('📅 Generating weekly schedule from:', viewStart);
+  console.log('📅 Total availabilities:', availabilities.length);
+  console.log('📅 Availabilities detail:', availabilities);
   
   for (let i = 0; i < 7; i++) {
     const currentDate = new Date(viewStart);
@@ -92,10 +97,22 @@ const generateWeeklySchedule = (
     const day = String(currentDate.getDate()).padStart(2, '0');
     const dateString = `${year}-${month}-${day}`;
     
-    const dayOfWeekNumber = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const dayAvailabilities = availabilities.filter(av => 
-      av.dayOfWeek === dayOfWeekNumber && av.isActive
-    );
+    // ✅ Fix: JavaScript's getDay() returns 0=Sunday, but backend uses 0=Sunday (1-7 where 1=Monday, 7=Sunday)
+    // So we need to convert: JS 0(Sun)=7, 1(Mon)=1, 2(Tue)=2, etc.
+    const jsDayOfWeek = currentDate.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+    const backendDayOfWeek = jsDayOfWeek === 0 ? 7 : jsDayOfWeek; // Convert to 1-7 where 7=Sunday
+    
+    console.log(`📅 Date ${dateString}: JS day=${jsDayOfWeek}, Backend day=${backendDayOfWeek}`);
+    
+    const dayAvailabilities = availabilities.filter(av => {
+      const matches = av.dayOfWeek === backendDayOfWeek && av.isActive;
+      if (matches) {
+        console.log(`  ✅ Found availability for ${dateString}:`, av);
+      }
+      return matches;
+    });
+    
+    console.log(`📅 ${dateString} (${dayNames[i]}) - Found ${dayAvailabilities.length} availability slots`);
     
     const slots: TimeSlot[] = [];
     const bookedForDay = bookedSlots.get(dateString) || [];
@@ -126,6 +143,7 @@ const generateWeeklySchedule = (
     });
   }
   
+  console.log('📅 Generated schedule:', schedule);
   return schedule;
 };
 
@@ -234,49 +252,60 @@ function BookingPageContent() {
         setLoadingAvailability(true);
         console.log('🔵 Loading doctors for specialty:', depart);
         
-        // First, let's get specialties to find the specialty ID
-        const specialtiesResponse = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082'}/api/specialties/with-count`);
-        const specialtiesData = await specialtiesResponse.json();
+        // ✅ FIX 1: Use the correct API endpoint for getting doctors by specialty name
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082'}/api/doctors/by-specialty?specialty=${encodeURIComponent(depart)}`
+        );
         
-        // Find the specialty ID by name
-        const specialty = specialtiesData.specialties.find((s: any) => s.name === depart);
+        if (!response.ok) {
+          console.error('❌ Failed to fetch doctors:', response.status);
+          setAvailabilities([]);
+          setDoctorsInDepartment([]);
+          return;
+        }
         
-        if (!specialty) {
-          console.warn('❌ Specialty not found:', depart);
+        const data = await response.json();
+        console.log('✅ API Response:', data);
+        
+        // ✅ FIX 2: Handle the response structure correctly
+        const doctors = data.doctors || [];
+        console.log('✅ Doctors loaded:', doctors.length, 'doctors');
+        setDoctorsInDepartment(doctors);
+        
+        if (doctors.length === 0) {
+          console.warn('⚠️ No doctors found for specialty:', depart);
           setAvailabilities([]);
           return;
         }
         
-        console.log('✅ Found specialty:', specialty);
-        
-        // Get doctors by specialty
-        const doctorsResponse = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082'}/api/doctors/specialty/${specialty.id}?page=0&size=100`);
-        const doctorsData = await doctorsResponse.json();
-        
-        console.log('✅ Doctors loaded:', doctorsData.doctors?.length || 0, 'doctors');
-        setDoctorsInDepartment(doctorsData.doctors || []);
-        
-        // Load availability for all doctors in the specialty
+        // ✅ FIX 3: Load availability for all doctors with proper error handling
         const allAvailabilities: Availability[] = [];
-        if (doctorsData.doctors && doctorsData.doctors.length > 0) {
-          await Promise.all(
-            doctorsData.doctors.map(async (doctor: any) => {
-              try {
-                const doctorAvailabilities = await AvailabilityService.getDoctorAvailability(doctor.id);
-                allAvailabilities.push(...doctorAvailabilities);
-              } catch (error) {
-                console.warn(`Failed to load availability for doctor ${doctor.id}:`, error);
-              }
-            })
-          );
+        
+        for (const doctor of doctors) {
+          try {
+            console.log(`🔍 Fetching availability for doctor ${doctor.id} (${doctor.doctorName})`);
+            const doctorAvailabilities = await AvailabilityService.getDoctorAvailability(doctor.id);
+            
+            if (doctorAvailabilities && doctorAvailabilities.length > 0) {
+              console.log(`✅ Found ${doctorAvailabilities.length} availability slots for doctor ${doctor.id}`);
+              allAvailabilities.push(...doctorAvailabilities);
+            } else {
+              console.log(`⚠️ No availability slots for doctor ${doctor.id}`);
+            }
+          } catch (error) {
+            console.warn(`⚠️ Failed to load availability for doctor ${doctor.id}:`, error);
+            // Continue with next doctor instead of failing completely
+          }
         }
         
-        console.log('✅ All availabilities loaded:', allAvailabilities.length, 'slots');
+        console.log('✅ Total availabilities loaded:', allAvailabilities.length, 'slots');
+        console.log('📊 Availability breakdown:', allAvailabilities);
         setAvailabilities(allAvailabilities);
         
       } catch (error) {
         console.error('❌ Failed to load doctors:', error);
         setAvailabilities([]);
+        setDoctorsInDepartment([]);
       } finally {
         setLoadingAvailability(false);
       }
@@ -285,10 +314,13 @@ function BookingPageContent() {
     loadDoctorsForDepartment();
   }, [depart]);
 
-  // Load booked slots for the current week across all doctors in department
+  // ✅ FIX 4: Update the booked slots loading to handle errors better
   useEffect(() => {
     const loadBookedSlotsForWeek = async () => {
-      if (!depart || doctorsInDepartment.length === 0) return;
+      if (!depart || doctorsInDepartment.length === 0) {
+        console.log('⏭️ Skipping booked slots load - no department or doctors');
+        return;
+      }
 
       try {
         console.log('🔵 Loading booked slots for', doctorsInDepartment.length, 'doctors');
@@ -297,26 +329,26 @@ function BookingPageContent() {
         const newBookedSlots = new Map<string, BookedSlot[]>();
 
         // Fetch booked slots for each doctor and date combination
-        await Promise.all(
-          doctorsInDepartment.map(async (doctor: any) => {
-            await Promise.all(
-              weekDates.map(async (date: Date) => {
-                const year = date.getFullYear();
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const day = String(date.getDate()).padStart(2, '0');
-                const dateString = `${year}-${month}-${day}`;
+        for (const doctor of doctorsInDepartment) {
+          for (const date of weekDates) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const dateString = `${year}-${month}-${day}`;
 
-                try {
-                  const slots = await AppointmentService.getBookedTimeSlots(doctor.id, dateString);
-                  const existingSlots = newBookedSlots.get(dateString) || [];
-                  newBookedSlots.set(dateString, [...existingSlots, ...slots]);
-                } catch (error) {
-                  console.warn(`Failed to load booked slots for doctor ${doctor.id} on ${dateString}:`, error);
-                }
-              })
-            );
-          })
-        );
+            try {
+              const slots = await AppointmentService.getBookedTimeSlots(doctor.id, dateString);
+              if (slots && slots.length > 0) {
+                const existingSlots = newBookedSlots.get(dateString) || [];
+                newBookedSlots.set(dateString, [...existingSlots, ...slots]);
+                console.log(`✅ Loaded ${slots.length} booked slots for doctor ${doctor.id} on ${dateString}`);
+              }
+            } catch (error) {
+              console.warn(`⚠️ Failed to load booked slots for doctor ${doctor.id} on ${dateString}:`, error);
+              // Continue with next date/doctor
+            }
+          }
+        }
 
         console.log('📊 All booked slots loaded:', Object.fromEntries(newBookedSlots));
         setBookedSlots(newBookedSlots);
