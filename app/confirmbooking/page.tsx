@@ -322,7 +322,7 @@ export default function ConfirmPage() {
     // ✅ Validate และจัดการ doctorId สำหรับทั้ง 2 โหมด
     if (!finalDoctorId || finalDoctorId === -1) {
       if (bookingData.bookingType === 'auto') {
-        // ✅ โหมด auto: เรียก smart-select API เพื่อเลือกแพทย์จริง
+        // ✅ โหมด auto: เรียก smart-select API เพื่อเลือกแพทย์จริงในช่วงเวลาที่เลือก
         console.log('🔵 Auto mode: Getting doctor via smart-select');
         
         try {
@@ -330,17 +330,30 @@ export default function ConfirmPage() {
           const dateStr = bookingData.selectedDate?.split('T')[0] || 
                           new Date(bookingData.selectedDate).toISOString().split('T')[0];
           
-          const response = await fetch(
-            `http://localhost:8082/api/doctors/smart-select?specialty=${encodeURIComponent(specialty)}&date=${dateStr}`
-          );
+          // ✅ เพิ่มเวลาที่เลือกเข้าไปใน query
+          const selectedTime = bookingData.selectedTime;
+          let apiUrl = `http://localhost:8082/api/doctors/smart-select?specialty=${encodeURIComponent(specialty)}&date=${dateStr}`;
+          
+          if (selectedTime) {
+            // แปลงเวลาจาก "9:00-10:00" เป็น "09:00" 
+            const timeStart = selectedTime.split('-')[0];
+            apiUrl += `&time=${encodeURIComponent(timeStart)}`;
+          }
+          
+          console.log('🔍 Smart-select URL:', apiUrl);
+          
+          const response = await fetch(apiUrl);
           
           if (response.ok) {
             const data = await response.json();
             if (data.doctor && data.doctor.id) {
               finalDoctorId = data.doctor.id;
-              console.log('✅ Got doctor from smart-select:', finalDoctorId);
+              console.log('✅ Got doctor from smart-select:', finalDoctorId, data.doctor.doctorName);
+              
+              // อัปเดต doctor name เป็นชื่อจริงที่ได้จาก API
+              setDoctor(data.doctor.doctorName);
             } else {
-              setBookingError("ขออภัย ไม่มีแพทย์ว่างในวันที่เลือก กรุณาเลือกวันอื่น");
+              setBookingError("ขออภัย ไม่มีแพทย์ว่างในช่วงเวลาที่เลือก กรุณาเลือกเวลาอื่น");
               return;
             }
           } else {

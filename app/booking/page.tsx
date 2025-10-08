@@ -34,10 +34,7 @@ function BookingPageContent() {
   const [bookingType, setBookingType] = useState<string>("");  // 'auto' หรือ 'manual'
   const [symptoms, setSymptoms] = useState("");  // อาการจริงๆ
   
-  const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
-  const [isLoadingDoctor, setIsLoadingDoctor] = useState(false);
-  const [doctorSelectionError, setDoctorSelectionError] = useState<string | null>(null);
-  const previousDateRef = useRef<Date | null>(null);
+  // ✅ ไม่ต้อง track doctor states เพราะใช้ UI เดียวกันทั้ง auto และ manual
 
   const selectionParam = searchParams.get("selection");
 
@@ -62,80 +59,20 @@ function BookingPageContent() {
     }
   }, [depart, selectedTime, selectedDate, bookingType, symptoms, selectionParam]);
 
-  // Auto select doctor when bookingType is 'auto'
+  // ✅ โหมด auto จะใช้ UI เดียวกับ manual โดยให้เลือกเวลาเอง
+  // แต่ระบบจะจัดแพทย์ให้ onsite ในขั้นตอนยืนยัน
   useEffect(() => {
-    const autoSelectDoctor = async () => {
-      const dateChanged = selectedDate !== previousDateRef.current;
-
-      // ✅ รอให้ผู้ใช้เลือกวันที่ก่อน และเลือกใหม่เมื่อวันที่เปลี่ยน
-      if (bookingType === 'auto' && depart && selectedDate && dateChanged && !isLoadingDoctor) {
-        previousDateRef.current = selectedDate;
-        setSelectedDoctor(null);
-        setDoctorSelectionError(null);
-        setIsLoadingDoctor(true);
-        
-        try {
-          console.log('🎯 [Auto Select] Calling smart-select API for specialty:', depart);
-          console.log('🎯 [Auto Select] Selected date:', selectedDate);
-
-          const year = selectedDate.getFullYear();
-          const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-          const day = String(selectedDate.getDate()).padStart(2, '0');
-          const dateString = `${year}-${month}-${day}`;
-
-          let url = `http://localhost:8082/api/doctors/smart-select?specialty=${encodeURIComponent(depart)}&date=${dateString}`;
-          console.log('🎯 [Auto Select] Using date for availability check:', dateString);
-
-          const response = await fetch(url);
-
-          if (response.ok) {
-            const data = await response.json();
-            console.log('✅ [Auto Select] Response:', data);
-
-            if (data.doctor) {
-              setSelectedDoctor(data.doctor);
-              setDoctorSelectionError(null);
-
-              const existingRaw = sessionStorage.getItem(DRAFT_KEY);
-              const existing = existingRaw ? JSON.parse(existingRaw) : {};
-              sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
-                ...existing,
-                selectedDoctor: '-',  // ✅ แสดง "-" แทนชื่อแพทย์
-                selectedDoctorId: data.doctor.id
-              }));
-
-              console.log(`🎯 [Auto Select] Selected: ${data.doctor.doctorName} (ID: ${data.doctor.id})`);
-            } else {
-              console.warn('⚠️ [Auto Select] No doctor available:', data.message);
-              
-              // ✅ กรณีไม่มีแพทย์ว่าง - ใส่ค่า dummy เพื่อให้ผ่านไปขั้นตอนถัดไป
-              // โรงพยาบาลจะจัดแพทย์ให้ onsite
-              const existingRaw = sessionStorage.getItem(DRAFT_KEY);
-              const existing = existingRaw ? JSON.parse(existingRaw) : {};
-              sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
-                ...existing,
-                selectedDoctor: '-',
-                selectedDoctorId: -1  // dummy ID เพื่อให้ระบบทำงานต่อได้
-              }));
-              
-              setSelectedDoctor(null);
-              setDoctorSelectionError(null); // ✅ ไม่แสดง error เพราะเป็นเรื่องปกติ
-            }
-          } else {
-            console.error('❌ [Auto Select] API error:', response.status);
-            setDoctorSelectionError('เกิดข้อผิดพลาดในการเลือกแพทย์');
-          }
-        } catch (error) {
-          console.error('❌ [Auto Select] Error:', error);
-          setDoctorSelectionError('ไม่สามารถเชื่อมต่อกับระบบได้');
-        } finally {
-          setIsLoadingDoctor(false);
-        }
-      }
-    };
-
-    autoSelectDoctor();
-  }, [bookingType, depart, isLoadingDoctor, selectedDate]);
+    if (bookingType === 'auto') {
+      // ตั้งค่า dummy doctor info สำหรับโหมด auto
+      const existingRaw = sessionStorage.getItem(DRAFT_KEY);
+      const existing = existingRaw ? JSON.parse(existingRaw) : {};
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+        ...existing,
+        selectedDoctor: '-',
+        selectedDoctorId: -1  // dummy ID สำหรับโหมด auto
+      }));
+    }
+  }, [bookingType]);
 
   // ✅ บันทึกข้อมูลทั้ง bookingType และ symptoms
   useEffect(() => {
@@ -223,50 +160,19 @@ function BookingPageContent() {
           </div>
         )}
 
-        {/* Auto Selected Doctor Display */}
+        {/* Doctor Info Display */}
         {bookingType === 'auto' && (
           <div className="mt-6">
-            {isLoadingDoctor ? (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md">
-                <div className="flex items-center space-x-3">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                  <p className="text-blue-700 font-medium">กำลังตรวจสอบความพร้อมของแพทย์...</p>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 max-w-md">
+              <div className="flex items-center space-x-3">
+                <User className="w-5 h-5 text-green-600" />
+                <div>
+                  <p className="text-green-700 font-medium">โรงพยาบาลจะจัดแพทย์ให้ onsite</p>
+                  <p className="text-green-800 font-bold">แพทย์: -</p>
+                  <p className="text-sm text-green-600">เลือกช่วงเวลาที่ว่างเพื่อจองนัดหมาย</p>
                 </div>
               </div>
-            ) : doctorSelectionError ? (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-md">
-                <div className="flex items-start space-x-3">
-                  <svg className="w-5 h-5 text-red-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <div className="flex-1">
-                    <p className="text-red-800 font-medium">ไม่สามารถเลือกแพทย์ได้</p>
-                    <p className="text-sm text-red-700 mt-1">{doctorSelectionError}</p>
-                    <p className="text-xs text-red-600 mt-2">💡 แนะนำ: ลองเปลี่ยนวันที่อื่นหรือเลือกโหมด "เลือกแพทย์เอง"</p>
-                  </div>
-                </div>
-              </div>
-            ) : selectedDoctor ? (
-              // ✅ แก้ไข: แสดง "-" แทนชื่อแพทย์
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 max-w-md">
-                <div className="flex items-center space-x-3">
-                  <User className="w-5 h-5 text-green-600" />
-                  <div>
-                    <p className="text-green-700 font-medium">โรงพยาบาลจะจัดแพทย์ให้ onsite</p>
-                    <p className="text-green-800 font-bold">แพทย์: -</p>
-                    <p className="text-sm text-green-600">ระบบจะจัดแพทย์ที่เหมาะสมให้ในวันนัดหมาย</p>
-                  </div>
-                </div>
-              </div>
-            ) : !selectedDate ? (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md">
-                <p className="text-blue-700 font-medium">📅 กรุณาเลือกวันที่เพื่อตรวจสอบความพร้อม</p>
-              </div>
-            ) : (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 max-w-md">
-                <p className="text-amber-700 font-medium">ไม่พบแพทย์ในแผนกนี้ กรุณาเลือกแผนกอื่น</p>
-              </div>
-            )}
+            </div>
           </div>
         )}
       </div>
@@ -375,14 +281,9 @@ function BookingPageContent() {
               
               <button
                 type="submit"
-                disabled={false}  // ✅ ไม่ต้อง validate selectedDoctor สำหรับโหมด auto
-                title={
-                  bookingType === 'auto' && (isLoadingDoctor || doctorSelectionError !== null || !selectedDoctor)
-                    ? 'กรุณารอให้ระบบเลือกแพทย์ หรือเปลี่ยนวันที่อื่น'
-                    : ''
-                }
+                disabled={!selectedTime || !selectedDate}  // ✅ ตรวจสอบแค่เวลาและวันที่
                 className={`flex items-center gap-2 px-8 py-4 rounded-2xl transition-all duration-200 shadow-lg font-semibold ${
-                  bookingType === 'auto' && (isLoadingDoctor || doctorSelectionError !== null || !selectedDoctor)
+                  !selectedTime || !selectedDate
                     ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
                     : 'bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-xl transform hover:-translate-y-0.5'
                 }`}
