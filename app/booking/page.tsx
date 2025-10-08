@@ -151,6 +151,7 @@ function BookingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [depart,setDepart] = useState<string>(searchParams.get("depart") ?? "");
+  const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null); // ✅ Add this
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
   const [viewStart, setViewStart] = useState<Date>(getStartOfWeek(new Date()));
@@ -164,10 +165,25 @@ function BookingPageContent() {
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [bookedSlots, setBookedSlots] = useState<Map<string, BookedSlot[]>>(new Map());
   const [doctorsInDepartment, setDoctorsInDepartment] = useState<Doctor[]>([]);
+  const [doctor, setDoctor] = useState<Doctor | null>(null); // ✅ Add this to store specific doctor info
   
   const apiService = new DoctorService();
 
   const selectionParam = searchParams.get("selection");
+
+  // ✅ FIX: Load doctor info from URL or sessionStorage
+  useEffect(() => {
+    const doctorIdFromUrl = searchParams.get("doctorId");
+    const draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
+    
+    if (doctorIdFromUrl) {
+      setSelectedDoctorId(parseInt(doctorIdFromUrl));
+      console.log('🔵 Doctor ID from URL:', doctorIdFromUrl);
+    } else if (draft.selectedDoctorId && draft.selectedDoctorId !== -1) {
+      setSelectedDoctorId(draft.selectedDoctorId);
+      console.log('🔵 Doctor ID from sessionStorage:', draft.selectedDoctorId);
+    }
+  }, [searchParams]);
 
   // ✅ เก็บ state ตอนกดกลับจากหน้า patientForm - โหลดแค่ครั้งเดียว
   useEffect(() => {
@@ -243,16 +259,49 @@ function BookingPageContent() {
     return () => clearTimeout(timeoutId);
   }, [symptoms]);
 
-  // Load all doctors for the selected department and their availabilities
+  // ✅ FIX: Load specific doctor's availability (for manual mode) or all doctors (for auto mode)
   useEffect(() => {
-    const loadDoctorsForDepartment = async () => {
+    const loadDoctorAvailability = async () => {
       if (!depart) return;
-      
+
+      if (bookingType === 'manual' && selectedDoctorId) {
+        try {
+          setLoadingAvailability(true);
+          console.log('🔵 Loading availability for specific doctor:', selectedDoctorId);
+          
+          // Load doctor details
+          const doctorResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082'}/api/doctors/${selectedDoctorId}`
+          );
+          if (doctorResponse.ok) {
+            const doctorData = await doctorResponse.json();
+            setDoctor(doctorData);
+            console.log('✅ Doctor loaded:', doctorData);
+          }
+          
+          // Load availability for this specific doctor
+          const doctorAvailabilities = await AvailabilityService.getDoctorAvailability(selectedDoctorId);
+          console.log('✅ Availabilities loaded for doctor:', doctorAvailabilities.length, 'slots');
+          console.log('📊 Doctor availability detail:', doctorAvailabilities);
+          setAvailabilities(doctorAvailabilities);
+          
+        } catch (error) {
+          console.error('❌ Failed to load doctor availability:', error);
+          setAvailabilities([]);
+        } finally {
+          setLoadingAvailability(false);
+        }
+      } else if (bookingType === 'auto') {
+        // For auto mode, load all doctors in department
+        loadDoctorsForDepartment();
+      }
+    };
+
+    const loadDoctorsForDepartment = async () => {
       try {
         setLoadingAvailability(true);
-        console.log('🔵 Loading doctors for specialty:', depart);
+        console.log('� Loading doctors for specialty (auto mode):', depart);
         
-        // ✅ FIX 1: Use the correct API endpoint for getting doctors by specialty name
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082'}/api/doctors/by-specialty?specialty=${encodeURIComponent(depart)}`
         );
@@ -265,41 +314,24 @@ function BookingPageContent() {
         }
         
         const data = await response.json();
-        console.log('✅ API Response:', data);
-        
-        // ✅ FIX 2: Handle the response structure correctly
         const doctors = data.doctors || [];
-        console.log('✅ Doctors loaded:', doctors.length, 'doctors');
+        console.log('✅ Doctors loaded for auto mode:', doctors.length);
         setDoctorsInDepartment(doctors);
         
-        if (doctors.length === 0) {
-          console.warn('⚠️ No doctors found for specialty:', depart);
-          setAvailabilities([]);
-          return;
-        }
-        
-        // ✅ FIX 3: Load availability for all doctors with proper error handling
+        // Load availability for all doctors
         const allAvailabilities: Availability[] = [];
-        
-        for (const doctor of doctors) {
+        for (const doc of doctors) {
           try {
-            console.log(`🔍 Fetching availability for doctor ${doctor.id} (${doctor.doctorName})`);
-            const doctorAvailabilities = await AvailabilityService.getDoctorAvailability(doctor.id);
-            
-            if (doctorAvailabilities && doctorAvailabilities.length > 0) {
-              console.log(`✅ Found ${doctorAvailabilities.length} availability slots for doctor ${doctor.id}`);
-              allAvailabilities.push(...doctorAvailabilities);
-            } else {
-              console.log(`⚠️ No availability slots for doctor ${doctor.id}`);
+            const docAvailabilities = await AvailabilityService.getDoctorAvailability(doc.id);
+            if (docAvailabilities && docAvailabilities.length > 0) {
+              allAvailabilities.push(...docAvailabilities);
             }
           } catch (error) {
-            console.warn(`⚠️ Failed to load availability for doctor ${doctor.id}:`, error);
-            // Continue with next doctor instead of failing completely
+            console.warn(`⚠️ Failed to load availability for doctor ${doc.id}:`, error);
           }
         }
         
-        console.log('✅ Total availabilities loaded:', allAvailabilities.length, 'slots');
-        console.log('📊 Availability breakdown:', allAvailabilities);
+        console.log('✅ Total availabilities loaded (auto mode):', allAvailabilities.length);
         setAvailabilities(allAvailabilities);
         
       } catch (error) {
@@ -311,25 +343,26 @@ function BookingPageContent() {
       }
     };
 
-    loadDoctorsForDepartment();
-  }, [depart]);
+    if (bookingType) {
+      loadDoctorAvailability();
+    }
+  }, [depart, bookingType, selectedDoctorId]);
 
-  // ✅ FIX 4: Update the booked slots loading to handle errors better
+  // ✅ FIX: Load booked slots for the selected doctor (manual mode) or all doctors (auto mode)
   useEffect(() => {
     const loadBookedSlotsForWeek = async () => {
-      if (!depart || doctorsInDepartment.length === 0) {
-        console.log('⏭️ Skipping booked slots load - no department or doctors');
-        return;
-      }
+      if (!depart) return;
 
       try {
-        console.log('🔵 Loading booked slots for', doctorsInDepartment.length, 'doctors');
+        console.log('🔵 Loading booked slots');
         
         const weekDates = getCurrentWeekDates();
         const newBookedSlots = new Map<string, BookedSlot[]>();
 
-        // Fetch booked slots for each doctor and date combination
-        for (const doctor of doctorsInDepartment) {
+        if (bookingType === 'manual' && selectedDoctorId) {
+          // Load slots for specific doctor only
+          console.log('� Loading slots for doctor:', selectedDoctorId);
+          
           for (const date of weekDates) {
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -337,19 +370,40 @@ function BookingPageContent() {
             const dateString = `${year}-${month}-${day}`;
 
             try {
-              const slots = await AppointmentService.getBookedTimeSlots(doctor.id, dateString);
+              const slots = await AppointmentService.getBookedTimeSlots(selectedDoctorId, dateString);
               if (slots && slots.length > 0) {
-                const existingSlots = newBookedSlots.get(dateString) || [];
-                newBookedSlots.set(dateString, [...existingSlots, ...slots]);
-                console.log(`✅ Loaded ${slots.length} booked slots for doctor ${doctor.id} on ${dateString}`);
+                newBookedSlots.set(dateString, slots);
+                console.log(`✅ Loaded ${slots.length} booked slots for ${dateString}`);
               }
             } catch (error) {
-              console.warn(`⚠️ Failed to load booked slots for doctor ${doctor.id} on ${dateString}:`, error);
-              // Continue with next date/doctor
+              console.warn(`⚠️ Failed to load slots for ${dateString}:`, error);
+            }
+          }
+        } else if (bookingType === 'auto' && doctorsInDepartment.length > 0) {
+          // Load slots for all doctors in department
+          console.log('📅 Loading slots for all doctors in auto mode');
+          
+          for (const doctor of doctorsInDepartment) {
+            for (const date of weekDates) {
+              const year = date.getFullYear();
+              const month = String(date.getMonth() + 1).padStart(2, '0');
+              const day = String(date.getDate()).padStart(2, '0');
+              const dateString = `${year}-${month}-${day}`;
+
+              try {
+                const slots = await AppointmentService.getBookedTimeSlots(doctor.id, dateString);
+                if (slots && slots.length > 0) {
+                  const existingSlots = newBookedSlots.get(dateString) || [];
+                  newBookedSlots.set(dateString, [...existingSlots, ...slots]);
+                  console.log(`✅ Loaded ${slots.length} booked slots for doctor ${doctor.id} on ${dateString}`);
+                }
+              } catch (error) {
+                console.warn(`⚠️ Failed to load slots for doctor ${doctor.id} on ${dateString}:`, error);
+              }
             }
           }
         }
-
+        
         console.log('📊 All booked slots loaded:', Object.fromEntries(newBookedSlots));
         setBookedSlots(newBookedSlots);
         
@@ -359,8 +413,10 @@ function BookingPageContent() {
       }
     };
 
-    loadBookedSlotsForWeek();
-  }, [depart, viewStart, doctorsInDepartment]);
+    if (selectedDoctorId || (bookingType === 'auto' && doctorsInDepartment.length > 0)) {
+      loadBookedSlotsForWeek();
+    }
+  }, [depart, viewStart, selectedDoctorId, bookingType, doctorsInDepartment]);
 
   // Generate weekly schedule from availabilities and booked slots
   const weeklySchedule = useMemo(() => {
@@ -465,6 +521,25 @@ function BookingPageContent() {
                   <p className="text-green-700 font-medium">โรงพยาบาลจะจัดแพทย์ให้ onsite</p>
                   <p className="text-green-800 font-bold">แพทย์: -</p>
                   <p className="text-sm text-green-600">เลือกช่วงเวลาที่ว่างเพื่อจองนัดหมาย</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Selected Doctor Info Display */}
+        {bookingType === 'manual' && doctor && (
+          <div className="mt-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md">
+              <div className="flex items-center space-x-3">
+                <User className="w-5 h-5 text-blue-600" />
+                <div>
+                  <p className="text-blue-700 font-medium">แพทย์ที่เลือก</p>
+                  <p className="text-blue-800 font-bold">{doctor.doctorName}</p>
+                  <p className="text-sm text-blue-600">ค่าตรวจ: ฿{doctor.consultationFee}</p>
+                  {doctor.roomNumber && (
+                    <p className="text-sm text-blue-600">ห้อง: {doctor.roomNumber}</p>
+                  )}
                 </div>
               </div>
             </div>
