@@ -5,6 +5,11 @@ import { AuthProvider } from '@/context/auth-context'
 export const metadata = {
   title: 'Doctora - ระบบจองนัดหมายแพทย์',
   description: 'ระบบจองนัดหมายแพทย์ออนไลน์ที่ทันสมัย ปลอดภัย และใช้งานง่าย',
+  icons: {
+    icon: '/images/logo.png',
+    shortcut: '/images/logo.png',
+    apple: '/images/logo.png',
+  },
 }
 
 export default function RootLayout({ 
