@@ -38,7 +38,7 @@ function BookingPageContent() {
 
   const selectionParam = searchParams.get("selection");
 
-  // ✅ เก็บ state ตอนกดกลับจากหน้า patientForm
+  // ✅ เก็บ state ตอนกดกลับจากหน้า patientForm - โหลดแค่ครั้งเดียว
   useEffect(() => {
     const raw = sessionStorage.getItem(DRAFT_KEY);
     const stored = raw ? JSON.parse(raw) : {};
@@ -47,17 +47,23 @@ function BookingPageContent() {
     if (!selectedTime && stored.selectedTime) setSelectedTime(stored.selectedTime);
     if (!selectedDate && stored.selectedDate) setSelectedDate(new Date(stored.selectedDate));
 
-    // ✅ โหลด bookingType และ symptoms แยกกัน
+    // ✅ โหลด bookingType
     if (!bookingType && stored.bookingType) {
       setBookingType(stored.bookingType);
     } else if (!stored.bookingType && selectionParam) {
       setBookingType(selectionParam);
     }
+  }, [selectionParam]); // ✅ dependency เฉพาะ selectionParam
+
+  // ✅ โหลด symptoms แยกต่างหาก - แค่ครั้งเดียว
+  useEffect(() => {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    const stored = raw ? JSON.parse(raw) : {};
     
     if (!symptoms && stored.symptoms) {
       setSymptoms(stored.symptoms);
     }
-  }, [depart, selectedTime, selectedDate, bookingType, symptoms, selectionParam]);
+  }, []); // ✅ ทำงานแค่ครั้งเดียวตอน mount
 
   // ✅ โหมด auto จะใช้ UI เดียวกับ manual โดยให้เลือกเวลาเอง
   // แต่ระบบจะจัดแพทย์ให้ onsite ในขั้นตอนยืนยัน
@@ -74,7 +80,7 @@ function BookingPageContent() {
     }
   }, [bookingType]);
 
-  // ✅ บันทึกข้อมูลทั้ง bookingType และ symptoms
+  // ✅ บันทึกข้อมูลหลัก (ไม่รวม symptoms เพื่อป้องกัน input lag)
   useEffect(() => {
     const existingRaw = sessionStorage.getItem(DRAFT_KEY);
     const existing = existingRaw ? JSON.parse(existingRaw) : {};
@@ -87,10 +93,24 @@ function BookingPageContent() {
             selectedTime,
             selectedDate: selectedDate?.toISOString() ?? null,
             bookingType,  // ✅ เก็บ bookingType
-            symptoms,     // ✅ เก็บอาการ
         })
     );
-  }, [depart, selectedTime, selectedDate, bookingType, symptoms]);
+  }, [depart, selectedTime, selectedDate, bookingType]);
+
+  // ✅ บันทึก symptoms แยกต่างหาก ใช้ debounce เพื่อป้องกัน input lag
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      const existingRaw = sessionStorage.getItem(DRAFT_KEY);
+      const existing = existingRaw ? JSON.parse(existingRaw) : {};
+      
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+        ...existing,
+        symptoms,     // ✅ เก็บอาการแยกต่างหาก
+      }));
+    }, 300); // รอ 300ms หลังจากผู้ใช้หยุดพิมพ์
+
+    return () => clearTimeout(timeoutId);
+  }, [symptoms]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -259,12 +279,14 @@ function BookingPageContent() {
                 <label className="text-lg font-semibold text-gray-800">อาการและปัญหาสุขภาพ</label>
               </div>
               <textarea
+                key="symptoms-textarea" 
                 name="symptoms"
                 value={symptoms}
                 onChange={(e) => setSymptoms(e.target.value)}
                 rows={4}
                 className="w-full p-4 border-2 border-emerald-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200 bg-white/90 backdrop-blur-sm"
                 placeholder="กรุณาระบุอาการและปัญหาสุขภาพของคุณโดยละเอียด..."
+                autoComplete="off"
               />
             </div>
 
