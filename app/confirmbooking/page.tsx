@@ -305,37 +305,81 @@ export default function ConfirmPage() {
   };
 
   const handleConfirm = async () => {
-    try {
-      setIsLoading(true);
-      setBookingError("");
+  try {
+    setIsLoading(true);
+    setBookingError("");
 
-      // Check authentication
-      if (!user) {
-        setBookingError("กรุณาเข้าสู่ระบบก่อนทำการจอง");
-        return;
-      }
+    // Check authentication
+    if (!user) {
+      setBookingError("กรุณาเข้าสู่ระบบก่อนทำการจอง");
+      return;
+    }
 
-      // Validate required data
-      if (!doctorId) {
+    // Get booking data
+    const bookingData = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
+    let finalDoctorId = doctorId;
+
+    // ✅ Validate และจัดการ doctorId สำหรับทั้ง 2 โหมด
+    if (!finalDoctorId || finalDoctorId === -1) {
+      if (bookingData.bookingType === 'auto') {
+        // ✅ โหมด auto: เรียก smart-select API เพื่อเลือกแพทย์จริง
+        console.log('🔵 Auto mode: Getting doctor via smart-select');
+        
+        try {
+          const specialty = bookingData.depart;
+          const dateStr = bookingData.selectedDate?.split('T')[0] || 
+                          new Date(bookingData.selectedDate).toISOString().split('T')[0];
+          
+          const response = await fetch(
+            `http://localhost:8082/api/doctors/smart-select?specialty=${encodeURIComponent(specialty)}&date=${dateStr}`
+          );
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.doctor && data.doctor.id) {
+              finalDoctorId = data.doctor.id;
+              console.log('✅ Got doctor from smart-select:', finalDoctorId);
+            } else {
+              setBookingError("ขออภัย ไม่มีแพทย์ว่างในวันที่เลือก กรุณาเลือกวันอื่น");
+              return;
+            }
+          } else {
+            setBookingError("ไม่สามารถเลือกแพทย์ได้ กรุณาลองใหม่อีกครั้ง");
+            return;
+          }
+        } catch (error) {
+          console.error('Error calling smart-select:', error);
+          setBookingError("เกิดข้อผิดพลาดในการเลือกแพทย์");
+          return;
+        }
+      } else {
+        // ✅ โหมด manual: ต้องมี doctorId
         setBookingError("ข้อมูลแพทย์ไม่ครบถ้วน กรุณาเริ่มการจองใหม่");
         return;
       }
+    }
 
-      if (!patient.firstName || !patient.lastName) {
-        setBookingError("ข้อมูลผู้ป่วยไม่ครบถ้วน");
-        return;
-      }
+    // Validate patient data
+    if (!patient.firstName || !patient.lastName) {
+      setBookingError("ข้อมูลผู้ป่วยไม่ครบถ้วน");
+      return;
+    }
 
-      // Get booking and patient data from sessionStorage
-      const bookingData = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
-      const patientData = JSON.parse(sessionStorage.getItem("patientData") || '{}');
+    // Get patient data from sessionStorage
+    const patientData = JSON.parse(sessionStorage.getItem("patientData") || '{}');
 
-      // Prepare API request
-      const appointmentRequest = AppointmentService.convertBookingDataToRequest(
-        bookingData,
-        patientData,
-        doctorId
-      );
+    // Final validation to ensure finalDoctorId is not null
+    if (!finalDoctorId) {
+      setBookingError("ไม่พบข้อมูลแพทย์ กรุณาลองใหม่อีกครั้ง");
+      return;
+    }
+
+    // Prepare API request
+    const appointmentRequest = AppointmentService.convertBookingDataToRequest(
+      bookingData,
+      patientData,
+      finalDoctorId  // ✅ ใช้ finalDoctorId ที่ได้จาก smart-select (ถ้าเป็นโหมด auto)
+    );
 
       console.log('Sending appointment request:', appointmentRequest);
 

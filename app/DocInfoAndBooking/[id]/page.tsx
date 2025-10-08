@@ -220,12 +220,10 @@ const DoctorDetailWireframes = () => {
 
           // Check if this slot is booked
           const bookedSlot = dayBookedSlots.find(booked => {
-            // Extract date and time from backend format: "2025-10-01T12:00:00"
             const bookedDateTime = booked.startTime;
-            const bookedDate = bookedDateTime.split('T')[0]; // "2025-10-01"
-            const bookedTime = bookedDateTime.split('T')[1]?.substring(0, 5); // "12:00"
+            const bookedDate = bookedDateTime.split('T')[0];
+            const bookedTime = bookedDateTime.split('T')[1]?.substring(0, 5);
 
-            // Compare both date and time
             return bookedDate === dateString && bookedTime === slotStart;
           });
 
@@ -236,15 +234,12 @@ const DoctorDetailWireframes = () => {
 
           if (bookedSlot) {
             console.log(`⚠️ [Slot ${dateString} ${slotStart}] Found booking:`, bookedSlot);
-            if (bookedSlot.status === 'CONFIRMED' || bookedSlot.status === 'COMPLETED') {
-              slotStatus = 'booked';
-              isAvailable = false; // Cannot book
-              console.log(`❌ [Slot ${dateString} ${slotStart}] Status: BOOKED (disabled)`);
-            } else if (bookedSlot.status === 'PENDING') {
-              slotStatus = 'pending';
-              isAvailable = true; // Can still book but show warning
-              console.log(`🟡 [Slot ${dateString} ${slotStart}] Status: PENDING (warning)`);
-            }
+            
+            // ✅ ปรับ logic: ซ่อนทุก slot ที่มีการจอง (ไม่ว่าจะเป็น PENDING, CONFIRMED)
+            slotStatus = bookedSlot.status === 'PENDING' ? 'pending' : 'booked';
+            isAvailable = false; // ✅ ตั้งเป็น false ทั้งหมดเพื่อไม่ให้แสดง
+            
+            console.log(`❌ [Slot ${dateString} ${slotStart}] Status: ${slotStatus} (hidden)`);
           }
 
           slots.push({

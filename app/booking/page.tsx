@@ -100,15 +100,26 @@ function BookingPageContent() {
               const existing = existingRaw ? JSON.parse(existingRaw) : {};
               sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
                 ...existing,
-                selectedDoctor: data.doctor.doctorName,
+                selectedDoctor: '-',  // ✅ แสดง "-" แทนชื่อแพทย์
                 selectedDoctorId: data.doctor.id
               }));
 
               console.log(`🎯 [Auto Select] Selected: ${data.doctor.doctorName} (ID: ${data.doctor.id})`);
             } else {
               console.warn('⚠️ [Auto Select] No doctor available:', data.message);
+              
+              // ✅ กรณีไม่มีแพทย์ว่าง - ใส่ค่า dummy เพื่อให้ผ่านไปขั้นตอนถัดไป
+              // โรงพยาบาลจะจัดแพทย์ให้ onsite
+              const existingRaw = sessionStorage.getItem(DRAFT_KEY);
+              const existing = existingRaw ? JSON.parse(existingRaw) : {};
+              sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+                ...existing,
+                selectedDoctor: '-',
+                selectedDoctorId: -1  // dummy ID เพื่อให้ระบบทำงานต่อได้
+              }));
+              
               setSelectedDoctor(null);
-              setDoctorSelectionError(data.message || 'ไม่มีแพทย์ว่างในวันที่เลือก');
+              setDoctorSelectionError(null); // ✅ ไม่แสดง error เพราะเป็นเรื่องปกติ
             }
           } else {
             console.error('❌ [Auto Select] API error:', response.status);
@@ -364,13 +375,7 @@ function BookingPageContent() {
               
               <button
                 type="submit"
-                disabled={
-                  bookingType === 'auto' && (
-                    isLoadingDoctor ||
-                    doctorSelectionError !== null ||
-                    !selectedDoctor
-                  )
-                }
+                disabled={false}  // ✅ ไม่ต้อง validate selectedDoctor สำหรับโหมด auto
                 title={
                   bookingType === 'auto' && (isLoadingDoctor || doctorSelectionError !== null || !selectedDoctor)
                     ? 'กรุณารอให้ระบบเลือกแพทย์ หรือเปลี่ยนวันที่อื่น'
