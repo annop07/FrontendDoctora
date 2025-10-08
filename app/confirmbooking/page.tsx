@@ -525,13 +525,18 @@ export default function ConfirmPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-3">
-                    <User className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-                    <div>
-                      <p className="text-sm text-gray-600">แพทย์</p>
-                      <p className="font-semibold text-gray-800">{doctor || "-"}</p>
-                    </div>
+                                  <div className="flex items-center space-x-3">
+                  <User className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm text-gray-600">แพทย์</p>
+                    <p className="font-semibold text-gray-800">
+                      {bookingType === 'auto' ? '-' : (doctor || "-")}
+                    </p>
+                    {bookingType === 'auto' && (
+                      <p className="text-xs text-gray-500 mt-0.5">โรงพยาบาลจะจัดแพทย์ให้ ณ โรงพยาบาล</p>
+                    )}
                   </div>
+                </div>
 
                   <div className="flex items-center space-x-3">
                     <Clock className="w-5 h-5 text-emerald-600 flex-shrink-0" />

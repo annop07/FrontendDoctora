@@ -219,7 +219,7 @@ function BookingPageContent() {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md">
                 <div className="flex items-center space-x-3">
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                  <p className="text-blue-700 font-medium">กำลังเลือกแพทย์ที่เหมาะสมให้คุณ...</p>
+                  <p className="text-blue-700 font-medium">กำลังตรวจสอบความพร้อมของแพทย์...</p>
                 </div>
               </div>
             ) : doctorSelectionError ? (
@@ -236,19 +236,20 @@ function BookingPageContent() {
                 </div>
               </div>
             ) : selectedDoctor ? (
+              // ✅ แก้ไข: แสดง "-" แทนชื่อแพทย์
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 max-w-md">
                 <div className="flex items-center space-x-3">
                   <User className="w-5 h-5 text-green-600" />
                   <div>
-                    <p className="text-green-700 font-medium">แพทย์ที่ระบบเลือกให้คุณ:</p>
-                    <p className="text-green-800 font-bold">{selectedDoctor.doctorName}</p>
-                    <p className="text-sm text-green-600">ห้อง {selectedDoctor.roomNumber} • ค่าตรวจ {selectedDoctor.consultationFee} บาท</p>
+                    <p className="text-green-700 font-medium">โรงพยาบาลจะจัดแพทย์ให้ onsite</p>
+                    <p className="text-green-800 font-bold">แพทย์: -</p>
+                    <p className="text-sm text-green-600">ระบบจะจัดแพทย์ที่เหมาะสมให้ในวันนัดหมาย</p>
                   </div>
                 </div>
               </div>
             ) : !selectedDate ? (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md">
-                <p className="text-blue-700 font-medium">📅 กรุณาเลือกวันที่เพื่อค้นหาแพทย์ที่ว่าง</p>
+                <p className="text-blue-700 font-medium">📅 กรุณาเลือกวันที่เพื่อตรวจสอบความพร้อม</p>
               </div>
             ) : (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 max-w-md">

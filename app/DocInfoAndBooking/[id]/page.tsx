@@ -610,82 +610,64 @@ const DoctorDetailWireframes = () => {
                 </div>
 
                 {/* Schedule Grid */}
-                <div className="grid grid-cols-7 gap-3">
-                  {weeklySchedule.map((dayData: DaySchedule, index: number) => {
-                    const isSelected = sameYMD(dayData.dateObj, selectedDate);
-                    const isToday = sameYMD(dayData.dateObj, new Date());
-                    const isPastDate = dayData.dateObj < new Date(new Date().setHours(0, 0, 0, 0));
+<div className="grid grid-cols-7 gap-3">
+  {weeklySchedule.map((dayData: DaySchedule, index: number) => {
+    const isSelected = sameYMD(dayData.dateObj, selectedDate);
+    const isToday = sameYMD(dayData.dateObj, new Date());
+    const isPastDate = dayData.dateObj < new Date(new Date().setHours(0, 0, 0, 0));
 
-                    const availableSlots = (dayData.slots && !isPastDate)
-                      ? dayData.slots.filter((slot: TimeSlot) => slot.available)
-                      : [];
+    const availableSlots = (dayData.slots && !isPastDate)
+      ? dayData.slots.filter((slot: TimeSlot) => slot.available)
+      : [];
 
-                    return (
-                      <div key={index} className={`rounded-xl overflow-hidden border-2 transition-all ${
-                        isPastDate
-                          ? 'opacity-40 border-gray-200'
-                          : isSelected
-                            ? 'border-emerald-500 shadow-lg shadow-emerald-100'
-                            : 'border-gray-200 hover:border-emerald-300'
-                      }`}>
-                        {/* Day Header */}
-                        <div className={`p-3 text-center ${
-                          isPastDate
-                            ? 'bg-gray-100 text-gray-400'
-                            : isSelected
-                              ? 'bg-gradient-to-br from-emerald-500 to-teal-500 text-white'
-                              : isToday
-                                ? 'bg-emerald-50 text-emerald-700'
-                                : 'bg-gray-50 text-gray-700'
-                        }`}>
-                          <div className="text-xs font-semibold mb-1 uppercase tracking-wide">{dayData.day}</div>
-                          <div className="text-2xl font-bold">{dayData.dateObj.getDate()}</div>
-                        </div>
+    return (
+      <div key={index} className={`rounded-xl overflow-hidden border-2 transition-all ${
+        isPastDate
+          ? 'opacity-40 border-gray-200'
+          : isSelected
+            ? 'border-emerald-500 shadow-lg shadow-emerald-100'
+            : 'border-gray-200 hover:border-emerald-300'
+      }`}>
+        {/* Day Header */}
+        <div className={`p-3 text-center ${
+          isPastDate
+            ? 'bg-gray-100 text-gray-400'
+            : isSelected
+              ? 'bg-gradient-to-br from-emerald-500 to-teal-500 text-white'
+              : isToday
+                ? 'bg-emerald-50 text-emerald-700'
+                : 'bg-gray-50 text-gray-700'
+        }`}>
+          <div className="text-xs font-semibold mb-1 uppercase tracking-wide">{dayData.day}</div>
+          <div className="text-2xl font-bold">{dayData.dateObj.getDate()}</div>
+        </div>
 
-                        {/* Time Slots */}
+                          {/* Time Slots */}
                         <div className="p-2 space-y-1.5 max-h-80 overflow-y-auto bg-white">
                           {availableSlots.length > 0 ? (
                             availableSlots.map((slot: TimeSlot, slotIndex: number) => {
                               const isPicked = sameYMD(dayData.dateObj, selectedDate) && selectedTimeSlot === slot.time;
                               const slotStatus = slot.status || 'available';
 
-                              // Determine button styling based on status
-                              let buttonClass = '';
-                              let statusBadge = null;
-
-                              if (!slot.available) {
-                                // Booked/Confirmed - Gray, disabled
-                                buttonClass = 'bg-gray-200 text-gray-500 cursor-not-allowed border border-gray-300';
-                                statusBadge = <span className="text-xs">เต็ม</span>;
-                              } else if (isPicked) {
-                                // Selected - Emerald gradient
-                                buttonClass = 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md';
-                              } else if (slotStatus === 'pending') {
-                                // Pending - Yellow warning
-                                buttonClass = 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100 border-2 border-yellow-300 hover:border-yellow-400';
-                                statusBadge = <span className="text-xs">มีคิวรอ</span>;
-                              } else {
-                                // Available - Green
-                                buttonClass = 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-2 border-emerald-200 hover:border-emerald-400';
+                              // ✅ แก้ไข: แสดงเฉพาะช่องว่าง (available)
+                              // ซ่อนช่อง pending และ booked
+                              if (!slot.available || slotStatus !== 'available') {
+                                return null; // ไม่แสดงช่องนี้
                               }
 
                               return (
                                 <button
                                   key={slotIndex}
                                   onClick={() => handleTimeSlotClick(dayData.dateObj, slot)}
-                                  disabled={!slot.available}
-                                  className={`w-full px-3 py-2.5 text-xs font-semibold rounded-lg transition-all ${buttonClass}`}
-                                  title={
-                                    !slot.available
-                                      ? 'เวลานี้เต็มแล้ว'
-                                      : slotStatus === 'pending'
-                                        ? 'มีคิวรอยืนยัน - ยังสามารถจองได้'
-                                        : 'ว่าง - สามารถจองได้'
-                                  }
+                                  className={`w-full px-3 py-2.5 text-xs font-semibold rounded-lg transition-all ${
+                                    isPicked
+                                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md'
+                                      : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-2 border-emerald-200 hover:border-emerald-400'
+                                  }`}
+                                  title="ว่าง - สามารถจองได้"
                                 >
                                   <div className="flex flex-col items-center gap-0.5">
                                     <span>{slot.time}</span>
-                                    {statusBadge}
                                   </div>
                                 </button>
                               );
