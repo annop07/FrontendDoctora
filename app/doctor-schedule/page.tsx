@@ -466,7 +466,11 @@ export default function DoctorSchedulePage() {
               {filteredAvailabilities
                 .sort((a, b) => {
                   if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek;
-                  return a.startTime.localeCompare(b.startTime);
+                  
+                  // ✅ แปลง startTime เป็น string ก่อน compare
+                  const timeA = AvailabilityService.formatTime(a.startTime);
+                  const timeB = AvailabilityService.formatTime(b.startTime);
+                  return timeA.localeCompare(timeB);
                 })
                 .map((availability) => {
                   const dayInfo = daysOfWeek.find(d => d.value === availability.dayOfWeek);
@@ -506,8 +510,10 @@ export default function DoctorSchedulePage() {
                               </span>
                               <span className="text-gray-400 ml-1">
                                 ({(() => {
-                                  const start = availability.startTime.split(':');
-                                  const end = availability.endTime.split(':');
+                                  const startTimeStr = AvailabilityService.formatTime(availability.startTime);
+                                  const endTimeStr = AvailabilityService.formatTime(availability.endTime);
+                                  const start = startTimeStr.split(':');
+                                  const end = endTimeStr.split(':');
                                   const hours = parseInt(end[0]) - parseInt(start[0]);
                                   const minutes = parseInt(end[1]) - parseInt(start[1]);
                                   const totalHours = hours + minutes / 60;
