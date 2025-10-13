@@ -255,35 +255,35 @@ export class AvailabilityService {
 
   /**
    * Helper: Format time display (HH:mm)
+   * รองรับทั้ง string และ array format
    */
-  static formatTime(time: string): string {
+  static formatTime(time: string | number[]): string {
     if (!time) return '';
 
-    // If it's already in HH:mm format
-    if (time.length === 5 && time.includes(':')) {
-      return time;
+    // ✅ If it's an array format like [HH, mm, ss]
+    if (Array.isArray(time)) {
+      if (time.length >= 2) {
+        const hours = String(time[0]).padStart(2, '0');
+        const minutes = String(time[1]).padStart(2, '0');
+        return `${hours}:${minutes}`;
+      }
+      return '00:00';
     }
 
-    // If it's in HH:mm:ss format
-    if (time.length >= 8) {
-      return time.substring(0, 5);
-    }
+    // ✅ If it's a string
+    if (typeof time === 'string') {
+      // If it's already in HH:mm format
+      if (time.length === 5 && time.includes(':')) {
+        return time;
+      }
 
-    // If it's an array format like [HH, mm, ss]
-    if (time.startsWith('[')) {
-      try {
-        const parsed = JSON.parse(time);
-        if (Array.isArray(parsed) && parsed.length >= 2) {
-          const hours = String(parsed[0]).padStart(2, '0');
-          const minutes = String(parsed[1]).padStart(2, '0');
-          return `${hours}:${minutes}`;
-        }
-      } catch (e) {
-        console.error('Error parsing time array:', e);
+      // If it's in HH:mm:ss format
+      if (time.length >= 8) {
+        return time.substring(0, 5);
       }
     }
 
-    return time;
+    return time.toString();
   }
 
   /**

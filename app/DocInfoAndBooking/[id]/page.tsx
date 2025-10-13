@@ -190,68 +190,61 @@ const DoctorDetailWireframes = () => {
       console.log(`🔍 [generateSchedule] ${dateString}: ${dayBookedSlots.length} booked slots from Map`);
 
       // Generate time slots from availability data
-      const slots: TimeSlot[] = [];
+const slots: TimeSlot[] = [];
 
-      dayAvailabilities.forEach(availability => {
-        // Convert startTime and endTime to time slots
-        const startTime = AvailabilityService.formatTime(availability.startTime);
-        const endTime = AvailabilityService.formatTime(availability.endTime);
+dayAvailabilities.forEach(availability => {
+  // ✅ ใช้ formatTime ที่รองรับทั้ง string และ array แล้ว
+  const startTime = AvailabilityService.formatTime(availability.startTime);
+  const endTime = AvailabilityService.formatTime(availability.endTime);
 
-        // Parse times
-        const [startHour, startMin] = startTime.split(':').map(Number);
-        const [endHour, endMin] = endTime.split(':').map(Number);
+  // Parse times
+  const [startHour, startMin] = startTime.split(':').map(Number);
+  const [endHour, endMin] = endTime.split(':').map(Number);
 
-        // Generate 1-hour slots within the availability window
-        let currentHour = startHour;
-        let currentMin = startMin;
+  // Generate 1-hour slots within the availability window
+  let currentHour = startHour;
+  let currentMin = startMin;
 
-        while (currentHour < endHour || (currentHour === endHour && currentMin < endMin)) {
-          const nextHour = currentMin + 60 >= 60 ? currentHour + 1 : currentHour;
-          const nextMin = (currentMin + 60) % 60;
+  while (currentHour < endHour || (currentHour === endHour && currentMin < endMin)) {
+    const nextHour = currentMin + 60 >= 60 ? currentHour + 1 : currentHour;
+    const nextMin = (currentMin + 60) % 60;
 
-          // Don't create slots that go past the end time
-          if (nextHour > endHour || (nextHour === endHour && nextMin > endMin)) {
-            break;
-          }
+    // Don't create slots that go past the end time
+    if (nextHour > endHour || (nextHour === endHour && nextMin > endMin)) {
+      break;
+    }
 
-          const slotStart = `${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')}`;
-          const slotEnd = `${String(nextHour).padStart(2, '0')}:${String(nextMin).padStart(2, '0')}`;
-          const timeRange = `${slotStart}-${slotEnd}`;
+    const slotStart = `${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')}`;
+    const slotEnd = `${String(nextHour).padStart(2, '0')}:${String(nextMin).padStart(2, '0')}`;
+    const timeRange = `${slotStart}-${slotEnd}`;
 
-          // Check if this slot is booked
-          const bookedSlot = dayBookedSlots.find(booked => {
-            const bookedDateTime = booked.startTime;
-            const bookedDate = bookedDateTime.split('T')[0];
-            const bookedTime = bookedDateTime.split('T')[1]?.substring(0, 5);
+    // Check if this slot is booked
+    const bookedSlot = dayBookedSlots.find(booked => {
+      const bookedDateTime = booked.startTime;
+      const bookedDate = bookedDateTime.split('T')[0];
+      const bookedTime = bookedDateTime.split('T')[1]?.substring(0, 5);
 
-            return bookedDate === dateString && bookedTime === slotStart;
-          });
+      return bookedDate === dateString && bookedTime === slotStart;
+    });
 
-          console.log(`[Slot Check] ${dateString} ${slotStart}: bookedSlot=`, bookedSlot);
+    let slotStatus: 'available' | 'pending' | 'booked' = 'available';
+    let isAvailable = true;
 
-          let slotStatus: 'available' | 'pending' | 'booked' = 'available';
-          let isAvailable = true;
+    if (bookedSlot) {
+      slotStatus = bookedSlot.status === 'PENDING' ? 'pending' : 'booked';
+      isAvailable = false;
+    }
 
-          if (bookedSlot) {
-            console.log(`⚠️ [Slot ${dateString} ${slotStart}] Found booking:`, bookedSlot);
-            
-            // ✅ ปรับ logic: ซ่อนทุก slot ที่มีการจอง (ไม่ว่าจะเป็น PENDING, CONFIRMED)
-            slotStatus = bookedSlot.status === 'PENDING' ? 'pending' : 'booked';
-            isAvailable = false; // ✅ ตั้งเป็น false ทั้งหมดเพื่อไม่ให้แสดง
-            
-            console.log(`❌ [Slot ${dateString} ${slotStart}] Status: ${slotStatus} (hidden)`);
-          }
+    slots.push({
+      time: timeRange,
+      available: isAvailable,
+      status: slotStatus,
+    });
 
-          slots.push({
-            time: timeRange,
-            available: isAvailable,
-            status: slotStatus,
-          });
-
-          currentHour = nextHour;
-          currentMin = nextMin;
-        }
-      });
+    currentHour = nextHour;
+    currentMin = nextMin;
+  }
+});
 
       return {
         day: dateObj.toLocaleDateString('th-TH', { weekday: 'short' }),
