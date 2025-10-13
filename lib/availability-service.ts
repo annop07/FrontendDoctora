@@ -5,8 +5,8 @@ export interface Availability {
   id: number;
   dayOfWeek: number;
   dayName: string;
-  startTime: string;
-  endTime: string;
+  startTime: string | number[]; // ✅ แก้ตรงนี้
+  endTime: string | number[];   // ✅ แก้ตรงนี้
   timeRange: string;
   isActive: boolean;
   createdAt?: string;

@@ -87,9 +87,27 @@ const generateWeeklySchedule = (
   console.log('📅 Total availabilities:', availabilities.length);
   console.log('📅 Availabilities detail:', availabilities);
   
-  // ✅ เพิ่ม logging เพื่อดู dayOfWeek ทั้งหมด
   const uniqueDays = [...new Set(availabilities.map(a => a.dayOfWeek))].sort();
   console.log('📅 Available days of week in data:', uniqueDays);
+  
+  // ✅ Helper function to parse time
+  const parseTime = (time: any): string => {
+    if (!time) return '00:00';
+    
+    // If it's already a string in HH:mm or HH:mm:ss format
+    if (typeof time === 'string') {
+      return time.substring(0, 5); // Get HH:mm
+    }
+    
+    // If it's an array [HH, mm, ss]
+    if (Array.isArray(time) && time.length >= 2) {
+      const hours = String(time[0]).padStart(2, '0');
+      const minutes = String(time[1]).padStart(2, '0');
+      return `${hours}:${minutes}`;
+    }
+    
+    return '00:00';
+  };
   
   for (let i = 0; i < 7; i++) {
     const currentDate = new Date(viewStart);
@@ -100,7 +118,7 @@ const generateWeeklySchedule = (
     const day = String(currentDate.getDate()).padStart(2, '0');
     const dateString = `${year}-${month}-${day}`;
     
-    const jsDayOfWeek = currentDate.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+    const jsDayOfWeek = currentDate.getDay();
     const backendDayOfWeek = jsDayOfWeek === 0 ? 7 : jsDayOfWeek;
     
     console.log(`📅 Date ${dateString}: JS day=${jsDayOfWeek}, Backend day=${backendDayOfWeek}`);
@@ -108,7 +126,9 @@ const generateWeeklySchedule = (
     const dayAvailabilities = availabilities.filter(av => {
       const matches = av.dayOfWeek === backendDayOfWeek && av.isActive;
       if (matches) {
-        console.log(`  ✅ Matched availability:`, av);
+        console.log(`  ✅ Found availability for day ${backendDayOfWeek}:`, av);
+        console.log(`     startTime type:`, typeof av.startTime, av.startTime);
+        console.log(`     endTime type:`, typeof av.endTime, av.endTime);
       }
       return matches;
     });
@@ -119,19 +139,38 @@ const generateWeeklySchedule = (
     const bookedForDay = bookedSlots.get(dateString) || [];
     
     dayAvailabilities.forEach(availability => {
-      const startHour = parseInt(availability.startTime.split(':')[0]);
-      const endHour = parseInt(availability.endTime.split(':')[0]);
+      // ✅ Parse time properly
+      const startTimeStr = parseTime(availability.startTime);
+      const endTimeStr = parseTime(availability.endTime);
       
+      console.log(`  🕐 Processing availability: ${startTimeStr} - ${endTimeStr}`);
+      
+      const startHour = parseInt(startTimeStr.split(':')[0]);
+      const endHour = parseInt(endTimeStr.split(':')[0]);
+      
+      // ✅ Generate hourly slots
       for (let hour = startHour; hour < endHour; hour++) {
         const timeSlot = `${hour.toString().padStart(2, '0')}:00-${(hour + 1).toString().padStart(2, '0')}:00`;
-        const isBooked = bookedForDay.some(booked => booked.startTime === timeSlot);
         
+        // Check if this time slot is already booked
+        const isBooked = bookedForDay.some(booked => {
+          const bookedDateTime = booked.startTime;
+          const bookedDate = bookedDateTime.split('T')[0];
+          const bookedTime = bookedDateTime.split('T')[1]?.substring(0, 5) || '';
+          const bookedHour = parseInt(bookedTime.split(':')[0]);
+          
+          return bookedDate === dateString && bookedHour === hour;
+        });
+        
+        // Avoid duplicate slots
         if (!slots.find(slot => slot.time === timeSlot)) {
           slots.push({
             time: timeSlot,
             available: !isBooked,
             status: isBooked ? 'booked' : 'available'
           });
+          
+          console.log(`    ➕ Added slot: ${timeSlot} (${isBooked ? 'BOOKED' : 'AVAILABLE'})`);
         }
       }
     });
@@ -142,6 +181,8 @@ const generateWeeklySchedule = (
       dateObj: currentDate,
       slots: slots.sort((a, b) => a.time.localeCompare(b.time))
     });
+    
+    console.log(`📅 ${dateString} final slots:`, slots.length);
   }
   
   console.log('📅 Generated schedule:', schedule);
