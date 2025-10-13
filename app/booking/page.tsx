@@ -75,7 +75,6 @@ const getCurrentWeekDates = (): Date[] => {
   return weekDates;
 };
 
-// ✅ FIX 5: Update generateWeeklySchedule to handle day of week correctly
 const generateWeeklySchedule = (
   viewStart: Date,
   availabilities: Availability[],
@@ -88,6 +87,10 @@ const generateWeeklySchedule = (
   console.log('📅 Total availabilities:', availabilities.length);
   console.log('📅 Availabilities detail:', availabilities);
   
+  // ✅ เพิ่ม logging เพื่อดู dayOfWeek ทั้งหมด
+  const uniqueDays = [...new Set(availabilities.map(a => a.dayOfWeek))].sort();
+  console.log('📅 Available days of week in data:', uniqueDays);
+  
   for (let i = 0; i < 7; i++) {
     const currentDate = new Date(viewStart);
     currentDate.setDate(viewStart.getDate() + i);
@@ -97,17 +100,15 @@ const generateWeeklySchedule = (
     const day = String(currentDate.getDate()).padStart(2, '0');
     const dateString = `${year}-${month}-${day}`;
     
-    // ✅ Fix: JavaScript's getDay() returns 0=Sunday, but backend uses 0=Sunday (1-7 where 1=Monday, 7=Sunday)
-    // So we need to convert: JS 0(Sun)=7, 1(Mon)=1, 2(Tue)=2, etc.
     const jsDayOfWeek = currentDate.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
-    const backendDayOfWeek = jsDayOfWeek === 0 ? 7 : jsDayOfWeek; // Convert to 1-7 where 7=Sunday
+    const backendDayOfWeek = jsDayOfWeek === 0 ? 7 : jsDayOfWeek;
     
     console.log(`📅 Date ${dateString}: JS day=${jsDayOfWeek}, Backend day=${backendDayOfWeek}`);
     
     const dayAvailabilities = availabilities.filter(av => {
       const matches = av.dayOfWeek === backendDayOfWeek && av.isActive;
       if (matches) {
-        console.log(`  ✅ Found availability for ${dateString}:`, av);
+        console.log(`  ✅ Matched availability:`, av);
       }
       return matches;
     });
