@@ -86,6 +86,18 @@ const generateWeeklySchedule = (
   console.log('📅 [generateSchedule] Generating weekly schedule from:', viewStart);
   console.log('📅 [generateSchedule] Total availabilities:', availabilities.length);
   
+  // ✅ LOG: Show all availabilities with their dayOfWeek
+  if (availabilities.length > 0) {
+    console.log('📊 [generateSchedule] Availability details:');
+    availabilities.forEach((av, index) => {
+      console.log(`  ${index + 1}. dayOfWeek=${av.dayOfWeek}, dayName=${av.dayName}, time=${
+        typeof av.startTime === 'string' ? av.startTime : av.startTime.join(':')
+      } - ${
+        typeof av.endTime === 'string' ? av.endTime : av.endTime.join(':')
+      }, isActive=${av.isActive}`);
+    });
+  }
+  
   for (let i = 0; i < 7; i++) {
     const currentDate = new Date(viewStart);
     currentDate.setDate(viewStart.getDate() + i);
@@ -104,12 +116,24 @@ const generateWeeklySchedule = (
     const dayAvailabilities = availabilities.filter(av => {
       const matches = av.dayOfWeek === backendDayOfWeek && av.isActive;
       if (matches) {
-        console.log(`  ✅ [generateSchedule] Found availability for day ${backendDayOfWeek}:`, av);
+        console.log(`  ✅ [generateSchedule] MATCHED availability:`, {
+          dayOfWeek: av.dayOfWeek,
+          dayName: av.dayName,
+          startTime: av.startTime,
+          endTime: av.endTime,
+          isActive: av.isActive
+        });
       }
       return matches;
     });
     
     console.log(`📅 [generateSchedule] ${dateString} (${dayNames[i]}) - Found ${dayAvailabilities.length} availability slots`);
+    
+    // ✅ If no matches found, show why
+    if (dayAvailabilities.length === 0 && availabilities.length > 0) {
+      const availableDays = [...new Set(availabilities.map(av => av.dayOfWeek))].sort();
+      console.log(`  ⚠️ [generateSchedule] No match for day ${backendDayOfWeek}. Available days in data:`, availableDays);
+    }
     
     const slots: TimeSlot[] = [];
     const bookedForDay = bookedSlots.get(dateString) || [];
