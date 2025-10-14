@@ -112,9 +112,12 @@ const generateWeeklySchedule = (
     
     console.log(`📅 [generateSchedule] Processing ${dateString}: JS day=${jsDayOfWeek}, Backend day=${backendDayOfWeek}`);
     
-    // ✅ Filter availabilities for this day (from ALL doctors in auto mode)
+    // ✅ FIX: Handle undefined isActive - treat undefined as true
     const dayAvailabilities = availabilities.filter(av => {
-      const matches = av.dayOfWeek === backendDayOfWeek && av.isActive;
+      // If isActive is undefined, treat it as true (available)
+      const isActive = av.isActive !== false; // true if undefined or true
+      const matches = av.dayOfWeek === backendDayOfWeek && isActive;
+      
       if (matches) {
         console.log(`  ✅ [generateSchedule] MATCHED availability:`, {
           dayOfWeek: av.dayOfWeek,
