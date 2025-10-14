@@ -83,8 +83,8 @@ const generateWeeklySchedule = (
   const schedule: DaySchedule[] = [];
   const dayNames = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
   
-  console.log('📅 Generating weekly schedule from:', viewStart);
-  console.log('📅 Total availabilities:', availabilities.length);
+  console.log('📅 [generateSchedule] Generating weekly schedule from:', viewStart);
+  console.log('📅 [generateSchedule] Total availabilities:', availabilities.length);
   
   for (let i = 0; i < 7; i++) {
     const currentDate = new Date(viewStart);
@@ -98,22 +98,35 @@ const generateWeeklySchedule = (
     const jsDayOfWeek = currentDate.getDay();
     const backendDayOfWeek = jsDayOfWeek === 0 ? 7 : jsDayOfWeek;
     
-    // ✅ Filter availabilities for this day
-    const dayAvailabilities = availabilities.filter(av => 
-      av.dayOfWeek === backendDayOfWeek && av.isActive
-    );
+    console.log(`📅 [generateSchedule] Processing ${dateString}: JS day=${jsDayOfWeek}, Backend day=${backendDayOfWeek}`);
+    
+    // ✅ Filter availabilities for this day (from ALL doctors in auto mode)
+    const dayAvailabilities = availabilities.filter(av => {
+      const matches = av.dayOfWeek === backendDayOfWeek && av.isActive;
+      if (matches) {
+        console.log(`  ✅ [generateSchedule] Found availability for day ${backendDayOfWeek}:`, av);
+      }
+      return matches;
+    });
+    
+    console.log(`📅 [generateSchedule] ${dateString} (${dayNames[i]}) - Found ${dayAvailabilities.length} availability slots`);
     
     const slots: TimeSlot[] = [];
     const bookedForDay = bookedSlots.get(dateString) || [];
     
-    // ✅ Generate time slots from availabilities
+    console.log(`📅 [generateSchedule] ${dateString} - ${bookedForDay.length} booked slots`);
+    
+    // ✅ Generate time slots from ALL availabilities (multiple doctors)
     dayAvailabilities.forEach(availability => {
+      // Parse time properly
       const startTimeStr = typeof availability.startTime === 'string' 
-        ? availability.startTime 
-        : `${availability.startTime[0]}:${availability.startTime[1]}`;
+        ? availability.startTime.substring(0, 5)
+        : `${String(availability.startTime[0]).padStart(2, '0')}:${String(availability.startTime[1]).padStart(2, '0')}`;
       const endTimeStr = typeof availability.endTime === 'string'
-        ? availability.endTime
-        : `${availability.endTime[0]}:${availability.endTime[1]}`;
+        ? availability.endTime.substring(0, 5)
+        : `${String(availability.endTime[0]).padStart(2, '0')}:${String(availability.endTime[1]).padStart(2, '0')}`;
+      
+      console.log(`  🕐 [generateSchedule] Processing availability: ${startTimeStr} - ${endTimeStr}`);
       
       const startHour = parseInt(startTimeStr.split(':')[0]);
       const endHour = parseInt(endTimeStr.split(':')[0]);
@@ -122,7 +135,7 @@ const generateWeeklySchedule = (
       for (let hour = startHour; hour < endHour; hour++) {
         const timeSlot = `${hour.toString().padStart(2, '0')}:00-${(hour + 1).toString().padStart(2, '0')}:00`;
         
-        // Check if this time slot is booked
+        // Check if this time slot is already booked
         const isBooked = bookedForDay.some(booked => {
           const bookedDateTime = booked.startTime;
           const bookedDate = bookedDateTime.split('T')[0];
@@ -132,13 +145,23 @@ const generateWeeklySchedule = (
           return bookedDate === dateString && bookedHour === hour;
         });
         
-        // Avoid duplicate slots
-        if (!slots.find(slot => slot.time === timeSlot)) {
+        // ✅ Avoid duplicate slots - if slot already exists, keep the available one
+        const existingSlot = slots.find(s => s.time === timeSlot);
+        if (existingSlot) {
+          // If existing slot is booked but new one is available, replace it
+          if (existingSlot.status === 'booked' && !isBooked) {
+            existingSlot.available = true;
+            existingSlot.status = 'available';
+            console.log(`    🔄 [generateSchedule] Updated slot ${timeSlot} to available`);
+          }
+        } else {
           slots.push({
             time: timeSlot,
             available: !isBooked,
             status: isBooked ? 'booked' : 'available'
           });
+          
+          console.log(`    ➕ [generateSchedule] Added slot: ${timeSlot} (${isBooked ? 'BOOKED' : 'AVAILABLE'})`);
         }
       }
     });
@@ -149,8 +172,11 @@ const generateWeeklySchedule = (
       dateObj: currentDate,
       slots: slots.sort((a, b) => a.time.localeCompare(b.time))
     });
+    
+    console.log(`📅 [generateSchedule] ${dateString} final slots:`, slots.length);
   }
   
+  console.log('📅 [generateSchedule] Generated schedule:', schedule);
   return schedule;
 };
 
@@ -265,6 +291,105 @@ function BookingPageContent() {
 
     return () => clearTimeout(timeoutId);
   }, [symptoms]);
+
+  // ✅ FIX: Load specific doctor's availability (for manual mode) or all doctors (for auto mode)
+  useEffect(() => {
+    const loadDoctorAvailability = async () => {
+      if (!depart) return;
+
+      if (bookingType === 'manual' && selectedDoctorId) {
+        try {
+          setLoadingAvailability(true);
+          console.log('🔵 Loading availability for specific doctor:', selectedDoctorId);
+          
+          // Load doctor details
+          const doctorResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082'}/api/doctors/${selectedDoctorId}`
+          );
+          if (doctorResponse.ok) {
+            const doctorData = await doctorResponse.json();
+            setDoctor(doctorData);
+            console.log('✅ Doctor loaded:', doctorData);
+          }
+          
+          // Load availability for this specific doctor
+          const doctorAvailabilities = await AvailabilityService.getDoctorAvailability(selectedDoctorId);
+          console.log('✅ Availabilities loaded for doctor:', doctorAvailabilities.length, 'slots');
+          setAvailabilities(doctorAvailabilities);
+          
+        } catch (error) {
+          console.error('❌ Failed to load doctor availability:', error);
+          setAvailabilities([]);
+        } finally {
+          setLoadingAvailability(false);
+        }
+      } else if (bookingType === 'auto') {
+        // ✅ For auto mode, load all doctors in department first
+        await loadDoctorsForDepartment();
+      }
+    };
+
+    const loadDoctorsForDepartment = async () => {
+      try {
+        setLoadingAvailability(true);
+        console.log('🔍 Loading doctors for specialty (auto mode):', depart);
+        
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082'}/api/doctors/by-specialty?specialty=${encodeURIComponent(depart)}`
+        );
+        
+        if (!response.ok) {
+          console.error('❌ Failed to fetch doctors:', response.status);
+          setAvailabilities([]);
+          setDoctorsInDepartment([]);
+          return;
+        }
+        
+        const data = await response.json();
+        const doctors = data.doctors || [];
+        console.log('✅ Doctors loaded for auto mode:', doctors.length);
+        setDoctorsInDepartment(doctors);
+        
+        // ✅ Load availability for ALL doctors
+        const allAvailabilities: Availability[] = [];
+        for (const doc of doctors) {
+          try {
+            console.log(`🔍 Loading availability for doctor ${doc.id}: ${doc.doctorName}`);
+            const docAvailabilities = await AvailabilityService.getDoctorAvailability(doc.id);
+            if (docAvailabilities && docAvailabilities.length > 0) {
+              console.log(`  ✅ Found ${docAvailabilities.length} availability slots for ${doc.doctorName}`);
+              allAvailabilities.push(...docAvailabilities);
+            } else {
+              console.log(`  ⚠️ No availability found for ${doc.doctorName}`);
+            }
+          } catch (error) {
+            console.warn(`⚠️ Failed to load availability for doctor ${doc.id}:`, error);
+          }
+        }
+        
+        console.log('✅ Total availabilities loaded (auto mode):', allAvailabilities.length);
+        console.log('📊 Availability breakdown by day:', 
+          allAvailabilities.reduce((acc, av) => {
+            acc[av.dayOfWeek] = (acc[av.dayOfWeek] || 0) + 1;
+            return acc;
+          }, {} as Record<number, number>)
+        );
+        
+        setAvailabilities(allAvailabilities);
+        
+      } catch (error) {
+        console.error('❌ Failed to load doctors:', error);
+        setAvailabilities([]);
+        setDoctorsInDepartment([]);
+      } finally {
+        setLoadingAvailability(false);
+      }
+    };
+
+    if (bookingType) {
+      loadDoctorAvailability();
+    }
+  }, [depart, bookingType, selectedDoctorId]);
 
   // ✅ แก้ใน useEffect ที่ load booked slots
 useEffect(() => {
@@ -428,6 +553,19 @@ const nextWeek = () => {
             <p className="font-bold text-lg">
               {bookingType === 'auto' ? 'โหมด: เลือกแพทย์ให้ฉัน' : 'โหมด: เลือกแพทย์เอง'}
             </p>
+          </div>
+        )}
+
+        {/* Debug Info - Remove in production */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-xs">
+            <p><strong>Debug Info:</strong></p>
+            <p>Booking Type: {bookingType}</p>
+            <p>Department: {depart}</p>
+            <p>Doctors Loaded: {doctorsInDepartment.length}</p>
+            <p>Total Availabilities: {availabilities.length}</p>
+            <p>Selected Doctor ID: {selectedDoctorId}</p>
+            <p>Loading: {loadingAvailability ? 'Yes' : 'No'}</p>
           </div>
         )}
 
