@@ -85,29 +85,6 @@ const generateWeeklySchedule = (
   
   console.log('📅 Generating weekly schedule from:', viewStart);
   console.log('📅 Total availabilities:', availabilities.length);
-  console.log('📅 Availabilities detail:', availabilities);
-  
-  const uniqueDays = [...new Set(availabilities.map(a => a.dayOfWeek))].sort();
-  console.log('📅 Available days of week in data:', uniqueDays);
-  
-  // ✅ Helper function to parse time
-  const parseTime = (time: any): string => {
-    if (!time) return '00:00';
-    
-    // If it's already a string in HH:mm or HH:mm:ss format
-    if (typeof time === 'string') {
-      return time.substring(0, 5); // Get HH:mm
-    }
-    
-    // If it's an array [HH, mm, ss]
-    if (Array.isArray(time) && time.length >= 2) {
-      const hours = String(time[0]).padStart(2, '0');
-      const minutes = String(time[1]).padStart(2, '0');
-      return `${hours}:${minutes}`;
-    }
-    
-    return '00:00';
-  };
   
   for (let i = 0; i < 7; i++) {
     const currentDate = new Date(viewStart);
@@ -121,38 +98,31 @@ const generateWeeklySchedule = (
     const jsDayOfWeek = currentDate.getDay();
     const backendDayOfWeek = jsDayOfWeek === 0 ? 7 : jsDayOfWeek;
     
-    console.log(`📅 Date ${dateString}: JS day=${jsDayOfWeek}, Backend day=${backendDayOfWeek}`);
-    
-    const dayAvailabilities = availabilities.filter(av => {
-      const matches = av.dayOfWeek === backendDayOfWeek && av.isActive;
-      if (matches) {
-        console.log(`  ✅ Found availability for day ${backendDayOfWeek}:`, av);
-        console.log(`     startTime type:`, typeof av.startTime, av.startTime);
-        console.log(`     endTime type:`, typeof av.endTime, av.endTime);
-      }
-      return matches;
-    });
-    
-    console.log(`📅 ${dateString} (${dayNames[i]}) - Found ${dayAvailabilities.length} availability slots`);
+    // ✅ Filter availabilities for this day
+    const dayAvailabilities = availabilities.filter(av => 
+      av.dayOfWeek === backendDayOfWeek && av.isActive
+    );
     
     const slots: TimeSlot[] = [];
     const bookedForDay = bookedSlots.get(dateString) || [];
     
+    // ✅ Generate time slots from availabilities
     dayAvailabilities.forEach(availability => {
-      // ✅ Parse time properly
-      const startTimeStr = parseTime(availability.startTime);
-      const endTimeStr = parseTime(availability.endTime);
-      
-      console.log(`  🕐 Processing availability: ${startTimeStr} - ${endTimeStr}`);
+      const startTimeStr = typeof availability.startTime === 'string' 
+        ? availability.startTime 
+        : `${availability.startTime[0]}:${availability.startTime[1]}`;
+      const endTimeStr = typeof availability.endTime === 'string'
+        ? availability.endTime
+        : `${availability.endTime[0]}:${availability.endTime[1]}`;
       
       const startHour = parseInt(startTimeStr.split(':')[0]);
       const endHour = parseInt(endTimeStr.split(':')[0]);
       
-      // ✅ Generate hourly slots
+      // Generate hourly slots
       for (let hour = startHour; hour < endHour; hour++) {
         const timeSlot = `${hour.toString().padStart(2, '0')}:00-${(hour + 1).toString().padStart(2, '0')}:00`;
         
-        // Check if this time slot is already booked
+        // Check if this time slot is booked
         const isBooked = bookedForDay.some(booked => {
           const bookedDateTime = booked.startTime;
           const bookedDate = bookedDateTime.split('T')[0];
@@ -169,8 +139,6 @@ const generateWeeklySchedule = (
             available: !isBooked,
             status: isBooked ? 'booked' : 'available'
           });
-          
-          console.log(`    ➕ Added slot: ${timeSlot} (${isBooked ? 'BOOKED' : 'AVAILABLE'})`);
         }
       }
     });
@@ -181,11 +149,8 @@ const generateWeeklySchedule = (
       dateObj: currentDate,
       slots: slots.sort((a, b) => a.time.localeCompare(b.time))
     });
-    
-    console.log(`📅 ${dateString} final slots:`, slots.length);
   }
   
-  console.log('📅 Generated schedule:', schedule);
   return schedule;
 };
 
@@ -301,110 +266,42 @@ function BookingPageContent() {
     return () => clearTimeout(timeoutId);
   }, [symptoms]);
 
-  // ✅ FIX: Load specific doctor's availability (for manual mode) or all doctors (for auto mode)
-  useEffect(() => {
-    const loadDoctorAvailability = async () => {
-      if (!depart) return;
+  // ✅ แก้ใน useEffect ที่ load booked slots
+useEffect(() => {
+  const loadBookedSlotsForWeek = async () => {
+    if (!depart) return;
+
+    try {
+      console.log('🔵 Loading booked slots');
+      
+      const weekDates = getCurrentWeekDates();
+      const newBookedSlots = new Map<string, BookedSlot[]>();
 
       if (bookingType === 'manual' && selectedDoctorId) {
-        try {
-          setLoadingAvailability(true);
-          console.log('🔵 Loading availability for specific doctor:', selectedDoctorId);
-          
-          // Load doctor details
-          const doctorResponse = await fetch(
-            `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082'}/api/doctors/${selectedDoctorId}`
-          );
-          if (doctorResponse.ok) {
-            const doctorData = await doctorResponse.json();
-            setDoctor(doctorData);
-            console.log('✅ Doctor loaded:', doctorData);
-          }
-          
-          // Load availability for this specific doctor
-          const doctorAvailabilities = await AvailabilityService.getDoctorAvailability(selectedDoctorId);
-          console.log('✅ Availabilities loaded for doctor:', doctorAvailabilities.length, 'slots');
-          console.log('📊 Doctor availability detail:', doctorAvailabilities);
-          setAvailabilities(doctorAvailabilities);
-          
-        } catch (error) {
-          console.error('❌ Failed to load doctor availability:', error);
-          setAvailabilities([]);
-        } finally {
-          setLoadingAvailability(false);
-        }
-      } else if (bookingType === 'auto') {
-        // For auto mode, load all doctors in department
-        loadDoctorsForDepartment();
-      }
-    };
+        // Load slots for specific doctor only
+        console.log('🔎 Loading slots for doctor:', selectedDoctorId);
+        
+        for (const date of weekDates) {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const dateString = `${year}-${month}-${day}`;
 
-    const loadDoctorsForDepartment = async () => {
-      try {
-        setLoadingAvailability(true);
-        console.log('� Loading doctors for specialty (auto mode):', depart);
-        
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082'}/api/doctors/by-specialty?specialty=${encodeURIComponent(depart)}`
-        );
-        
-        if (!response.ok) {
-          console.error('❌ Failed to fetch doctors:', response.status);
-          setAvailabilities([]);
-          setDoctorsInDepartment([]);
-          return;
-        }
-        
-        const data = await response.json();
-        const doctors = data.doctors || [];
-        console.log('✅ Doctors loaded for auto mode:', doctors.length);
-        setDoctorsInDepartment(doctors);
-        
-        // Load availability for all doctors
-        const allAvailabilities: Availability[] = [];
-        for (const doc of doctors) {
           try {
-            const docAvailabilities = await AvailabilityService.getDoctorAvailability(doc.id);
-            if (docAvailabilities && docAvailabilities.length > 0) {
-              allAvailabilities.push(...docAvailabilities);
+            const slots = await AppointmentService.getBookedTimeSlots(selectedDoctorId, dateString);
+            if (slots && slots.length > 0) {
+              newBookedSlots.set(dateString, slots);
+              console.log(`✅ Loaded ${slots.length} booked slots for ${dateString}`);
             }
           } catch (error) {
-            console.warn(`⚠️ Failed to load availability for doctor ${doc.id}:`, error);
+            console.warn(`⚠️ Failed to load slots for ${dateString}:`, error);
           }
         }
+      } else if (bookingType === 'auto' && doctorsInDepartment.length > 0) {
+        // Load slots for ALL doctors in department (for auto mode)
+        console.log('📅 Loading slots for all doctors in auto mode');
         
-        console.log('✅ Total availabilities loaded (auto mode):', allAvailabilities.length);
-        setAvailabilities(allAvailabilities);
-        
-      } catch (error) {
-        console.error('❌ Failed to load doctors:', error);
-        setAvailabilities([]);
-        setDoctorsInDepartment([]);
-      } finally {
-        setLoadingAvailability(false);
-      }
-    };
-
-    if (bookingType) {
-      loadDoctorAvailability();
-    }
-  }, [depart, bookingType, selectedDoctorId]);
-
-  // ✅ FIX: Load booked slots for the selected doctor (manual mode) or all doctors (auto mode)
-  useEffect(() => {
-    const loadBookedSlotsForWeek = async () => {
-      if (!depart) return;
-
-      try {
-        console.log('🔵 Loading booked slots');
-        
-        const weekDates = getCurrentWeekDates();
-        const newBookedSlots = new Map<string, BookedSlot[]>();
-
-        if (bookingType === 'manual' && selectedDoctorId) {
-          // Load slots for specific doctor only
-          console.log('� Loading slots for doctor:', selectedDoctorId);
-          
+        for (const doctor of doctorsInDepartment) {
           for (const date of weekDates) {
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -412,53 +309,32 @@ function BookingPageContent() {
             const dateString = `${year}-${month}-${day}`;
 
             try {
-              const slots = await AppointmentService.getBookedTimeSlots(selectedDoctorId, dateString);
+              const slots = await AppointmentService.getBookedTimeSlots(doctor.id, dateString);
               if (slots && slots.length > 0) {
-                newBookedSlots.set(dateString, slots);
-                console.log(`✅ Loaded ${slots.length} booked slots for ${dateString}`);
+                const existingSlots = newBookedSlots.get(dateString) || [];
+                newBookedSlots.set(dateString, [...existingSlots, ...slots]);
+                console.log(`✅ Loaded ${slots.length} booked slots for doctor ${doctor.id} on ${dateString}`);
               }
             } catch (error) {
-              console.warn(`⚠️ Failed to load slots for ${dateString}:`, error);
-            }
-          }
-        } else if (bookingType === 'auto' && doctorsInDepartment.length > 0) {
-          // Load slots for all doctors in department
-          console.log('📅 Loading slots for all doctors in auto mode');
-          
-          for (const doctor of doctorsInDepartment) {
-            for (const date of weekDates) {
-              const year = date.getFullYear();
-              const month = String(date.getMonth() + 1).padStart(2, '0');
-              const day = String(date.getDate()).padStart(2, '0');
-              const dateString = `${year}-${month}-${day}`;
-
-              try {
-                const slots = await AppointmentService.getBookedTimeSlots(doctor.id, dateString);
-                if (slots && slots.length > 0) {
-                  const existingSlots = newBookedSlots.get(dateString) || [];
-                  newBookedSlots.set(dateString, [...existingSlots, ...slots]);
-                  console.log(`✅ Loaded ${slots.length} booked slots for doctor ${doctor.id} on ${dateString}`);
-                }
-              } catch (error) {
-                console.warn(`⚠️ Failed to load slots for doctor ${doctor.id} on ${dateString}:`, error);
-              }
+              console.warn(`⚠️ Failed to load slots for doctor ${doctor.id} on ${dateString}:`, error);
             }
           }
         }
-        
-        console.log('📊 All booked slots loaded:', Object.fromEntries(newBookedSlots));
-        setBookedSlots(newBookedSlots);
-        
-      } catch (error) {
-        console.error('❌ Failed to load booked slots:', error);
-        setBookedSlots(new Map());
       }
-    };
-
-    if (selectedDoctorId || (bookingType === 'auto' && doctorsInDepartment.length > 0)) {
-      loadBookedSlotsForWeek();
+      
+      console.log('📊 All booked slots loaded:', Object.fromEntries(newBookedSlots));
+      setBookedSlots(newBookedSlots);
+      
+    } catch (error) {
+      console.error('❌ Failed to load booked slots:', error);
+      setBookedSlots(new Map());
     }
-  }, [depart, viewStart, selectedDoctorId, bookingType, doctorsInDepartment]);
+  };
+
+  if (selectedDoctorId || (bookingType === 'auto' && doctorsInDepartment.length > 0)) {
+    loadBookedSlotsForWeek();
+  }
+}, [depart, viewStart, selectedDoctorId, bookingType, doctorsInDepartment]);
 
   // Generate weekly schedule from availabilities and booked slots
   const weeklySchedule = useMemo(() => {
@@ -472,18 +348,20 @@ function BookingPageContent() {
     setSelectedTimeSlot(slot.time);
   };
 
-  // Week navigation functions  
-  const prevWeek = () => setViewStart(prev => {
-    const newDate = new Date(prev);
-    newDate.setDate(newDate.getDate() - 7);
-    return newDate;
-  });
+  // ✅ ลบฟังก์ชัน canGoPrevious และแก้ prevWeek
+const prevWeek = () => {
+  const prev = new Date(viewStart);
+  prev.setDate(viewStart.getDate() - 7);
+  setViewStart(prev);
+  setSelectedTimeSlot(null);
+};
 
-  const nextWeek = () => setViewStart(prev => {
-    const newDate = new Date(prev);
-    newDate.setDate(newDate.getDate() + 7);
-    return newDate;
-  });
+const nextWeek = () => {
+  const next = new Date(viewStart);
+  next.setDate(viewStart.getDate() + 7);
+  setViewStart(next);
+  setSelectedTimeSlot(null);
+};
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -605,6 +483,7 @@ function BookingPageContent() {
               <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-6 border border-emerald-200">
                 {/* Week Navigation */}
                 <div className="flex items-center justify-between mb-6">
+                  // ✅ ใน JSX ลบ disabled prop
                   <button
                     type="button"
                     onClick={prevWeek}
@@ -673,43 +552,43 @@ function BookingPageContent() {
                           </div>
 
                           {/* Time Slots */}
-                          <div className="p-2 space-y-1.5 max-h-80 overflow-y-auto bg-white">
-                            {availableSlots.length > 0 ? (
-                              availableSlots.map((slot: TimeSlot, slotIndex: number) => {
-                                const isPicked = sameYMD(dayData.dateObj, selectedDate) && selectedTimeSlot === slot.time;
-                                const slotStatus = slot.status || 'available';
+<div className="p-2 space-y-1.5 max-h-80 overflow-y-auto bg-white">
+  {availableSlots.length > 0 ? (
+    availableSlots.map((slot: TimeSlot, slotIndex: number) => {
+      const isPicked = sameYMD(dayData.dateObj, selectedDate) && selectedTimeSlot === slot.time;
+      const slotStatus = slot.status || 'available';
 
-                                // Show only available slots
-                                if (!slot.available || slotStatus !== 'available') {
-                                  return null;
-                                }
+      // ✅ Show only available slots
+      if (!slot.available || slotStatus !== 'available') {
+        return null;
+      }
 
-                                return (
-                                  <button
-                                    key={slotIndex}
-                                    type="button"
-                                    onClick={() => handleTimeSlotClick(dayData.dateObj, slot)}
-                                    className={`w-full px-3 py-2.5 text-xs font-semibold rounded-lg transition-all ${
-                                      isPicked
-                                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md'
-                                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-2 border-emerald-200 hover:border-emerald-400'
-                                    }`}
-                                    title="ว่าง - สามารถจองได้"
-                                  >
-                                    <div className="flex flex-col items-center gap-0.5">
-                                      <span>{slot.time}</span>
-                                    </div>
-                                  </button>
-                                );
-                              })
-                            ) : (
-                              <div className="text-center py-12">
-                                <div className="text-gray-400 text-sm font-medium">
-                                  {isPastDate ? 'ผ่านแล้ว' : 'ไม่มีเวลาว่าง'}
-                                </div>
-                              </div>
-                            )}
-                          </div>
+      return (
+        <button
+          key={slotIndex}
+          type="button"
+          onClick={() => handleTimeSlotClick(dayData.dateObj, slot)}
+          className={`w-full px-3 py-2.5 text-xs font-semibold rounded-lg transition-all ${
+            isPicked
+              ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md'
+              : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-2 border-emerald-200 hover:border-emerald-400'
+          }`}
+          title="ว่าง - สามารถจองได้"
+        >
+          <div className="flex flex-col items-center gap-0.5">
+            <span>{slot.time}</span>
+          </div>
+        </button>
+      );
+    })
+  ) : (
+    <div className="text-center py-12">
+      <div className="text-gray-400 text-sm font-medium">
+        {isPastDate ? 'ผ่านแล้ว' : 'ไม่มีเวลาว่าง'}
+      </div>
+    </div>
+  )}
+</div>
                         </div>
                       );
                     })}
