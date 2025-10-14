@@ -648,7 +648,6 @@ const nextWeek = () => {
               <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-6 border border-emerald-200">
                 {/* Week Navigation */}
                 <div className="flex items-center justify-between mb-6">
-                  // ✅ ใน JSX ลบ disabled prop
                   <button
                     type="button"
                     onClick={prevWeek}
