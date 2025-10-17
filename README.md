@@ -9,7 +9,7 @@ https://github.com/annop07/doctora-spring-boot
 https://frontenddoctora-production-0742.up.railway.app/?fbclid=IwY2xjawNfbUhleHRuA2FlbQIxMABicmlkETFONU94QXBKWklBbXFCQ25KAR6X3Tn1LHGRpEL6ag2-a2r89V19j7k5_gfImDnQLHG7EfY6sGunww2AE2fBAQ_aem_U2pMmfM3n1cx1-5gxMpJ5A
 
 ## เอกสารรูปเล่ม
-[Uploading Doctora.pdf…]()
+file:///Users/annopsangsila/Downloads/Doctora%20(1).pdf
 
 
 ## Features
