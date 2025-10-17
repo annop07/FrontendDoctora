@@ -83,7 +83,13 @@ const generateWeeklySchedule = (
   const schedule: DaySchedule[] = [];
   const dayNames = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
   
+  // ✅ เพิ่ม: หาเวลาปัจจุบัน
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+  
   console.log('📅 [generateSchedule] Generating weekly schedule from:', viewStart);
+  console.log('⏰ [generateSchedule] Current time:', `${currentHour}:${currentMinute}`);
   console.log('📅 [generateSchedule] Total availabilities:', availabilities.length);
   
   // ✅ LOG: Show all availabilities with their dayOfWeek
@@ -110,7 +116,12 @@ const generateWeeklySchedule = (
     const jsDayOfWeek = currentDate.getDay();
     const backendDayOfWeek = jsDayOfWeek === 0 ? 7 : jsDayOfWeek;
     
-    console.log(`📅 [generateSchedule] Processing ${dateString}: JS day=${jsDayOfWeek}, Backend day=${backendDayOfWeek}`);
+    // ✅ เพิ่ม: เช็คว่าเป็นวันเดียวกันกับวันปัจจุบันหรือไม่
+    const isToday = now.getFullYear() === currentDate.getFullYear() &&
+                    now.getMonth() === currentDate.getMonth() &&
+                    now.getDate() === currentDate.getDate();
+    
+    console.log(`📅 [generateSchedule] Processing ${dateString}: JS day=${jsDayOfWeek}, Backend day=${backendDayOfWeek}, isToday=${isToday}`);
     
     // ✅ FIX: Handle undefined isActive - treat undefined as true
     const dayAvailabilities = availabilities.filter(av => {
@@ -162,6 +173,17 @@ const generateWeeklySchedule = (
       for (let hour = startHour; hour < endHour; hour++) {
         const timeSlot = `${hour.toString().padStart(2, '0')}:00-${(hour + 1).toString().padStart(2, '0')}:00`;
         
+        // ✅ เพิ่ม: เช็คว่าเป็นเวลาที่ผ่านไปแล้วหรือไม่ (สำหรับวันนี้)
+        let isPastTime = false;
+        if (isToday) {
+          // ถ้าชั่วโมงของ slot น้อยกว่าชั่วโมงปัจจุบัน = ผ่านไปแล้ว
+          // หรือถ้าชั่วโมงเท่ากัน และนาทีปัจจุบันเกิน 0 = ผ่านไปแล้ว (เพราะ slot เริ่ม :00)
+          if (hour < currentHour || (hour === currentHour && currentMinute > 0)) {
+            isPastTime = true;
+            console.log(`    ⏰ [generateSchedule] Slot ${timeSlot} is in the past (current time: ${currentHour}:${currentMinute})`);
+          }
+        }
+        
         // Check if this time slot is already booked
         const isBooked = bookedForDay.some(booked => {
           const bookedDateTime = booked.startTime;
@@ -176,19 +198,29 @@ const generateWeeklySchedule = (
         const existingSlot = slots.find(s => s.time === timeSlot);
         if (existingSlot) {
           // If existing slot is booked but new one is available, replace it
-          if (existingSlot.status === 'booked' && !isBooked) {
+          if (existingSlot.status === 'booked' && !isBooked && !isPastTime) {
             existingSlot.available = true;
             existingSlot.status = 'available';
             console.log(`    🔄 [generateSchedule] Updated slot ${timeSlot} to available`);
+          } else if (isPastTime && existingSlot.available) {
+            // ✅ ถ้าเป็นเวลาที่ผ่านไปแล้ว ให้เปลี่ยนเป็น unavailable
+            existingSlot.available = false;
+            existingSlot.status = 'booked'; // ใช้ status 'booked' เพื่อไม่ให้แสดง
+            console.log(`    ⏰ [generateSchedule] Marked past slot ${timeSlot} as unavailable`);
           }
         } else {
+          // ✅ ถ้าเป็นเวลาที่ผ่านไปแล้วหรือถูกจองแล้ว = ไม่ว่าง
+          const isAvailable = !isBooked && !isPastTime;
+          const status = isPastTime ? 'booked' : (isBooked ? 'booked' : 'available');
+          
           slots.push({
             time: timeSlot,
-            available: !isBooked,
-            status: isBooked ? 'booked' : 'available'
+            available: isAvailable,
+            status: status
           });
           
-          console.log(`    ➕ [generateSchedule] Added slot: ${timeSlot} (${isBooked ? 'BOOKED' : 'AVAILABLE'})`);
+          const statusText = isPastTime ? 'PAST' : (isBooked ? 'BOOKED' : 'AVAILABLE');
+          console.log(`    ➕ [generateSchedule] Added slot: ${timeSlot} (${statusText})`);
         }
       }
     });

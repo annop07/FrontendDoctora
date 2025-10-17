@@ -170,6 +170,11 @@ const DoctorDetailWireframes = () => {
 
   // Generate real schedule from availability data
   const generateScheduleFromAvailability = (weekDates: Date[]) => {
+    // ✅ เพิ่ม: หาเวลาปัจจุบัน
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    
     return weekDates.map((dateObj) => {
       const dayOfWeek = dateObj.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
 
@@ -182,12 +187,17 @@ const DoctorDetailWireframes = () => {
       const day = String(dateObj.getDate()).padStart(2, '0');
       const dateString = `${year}-${month}-${day}`;
 
+      // ✅ เพิ่ม: เช็คว่าเป็นวันเดียวกันกับวันปัจจุบันหรือไม่
+      const isToday = now.getFullYear() === dateObj.getFullYear() &&
+                      now.getMonth() === dateObj.getMonth() &&
+                      now.getDate() === dateObj.getDate();
+
       // Find availability for this day of week (using backend format)
       const dayAvailabilities = availabilities.filter(av => av.dayOfWeek === backendDayOfWeek);
 
       // Get booked slots for this date
       const dayBookedSlots = bookedSlots.get(dateString) || [];
-      console.log(`🔍 [generateSchedule] ${dateString}: ${dayBookedSlots.length} booked slots from Map`);
+      console.log(`🔍 [generateSchedule] ${dateString}: ${dayBookedSlots.length} booked slots from Map, isToday=${isToday}`);
 
       // Generate time slots from availability data
 const slots: TimeSlot[] = [];
@@ -214,34 +224,48 @@ dayAvailabilities.forEach(availability => {
       break;
     }
 
-    const slotStart = `${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')}`;
-    const slotEnd = `${String(nextHour).padStart(2, '0')}:${String(nextMin).padStart(2, '0')}`;
-    const timeRange = `${slotStart}-${slotEnd}`;
+        const slotStart = `${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')}`;
+        const slotEnd = `${String(nextHour).padStart(2, '0')}:${String(nextMin).padStart(2, '0')}`;
+        const timeRange = `${slotStart}-${slotEnd}`;
 
-    // Check if this slot is booked
-    const bookedSlot = dayBookedSlots.find(booked => {
-      const bookedDateTime = booked.startTime;
-      const bookedDate = bookedDateTime.split('T')[0];
-      const bookedTime = bookedDateTime.split('T')[1]?.substring(0, 5);
+        // ✅ เพิ่ม: เช็คว่าเป็นเวลาที่ผ่านไปแล้วหรือไม่
+        let isPastTime = false;
+        if (isToday) {
+          // ถ้าชั่วโมงของ slot น้อยกว่าชั่วโมงปัจจุบัน = ผ่านไปแล้ว
+          const nowHour = now.getHours();
+          const nowMin = now.getMinutes();
+          if (currentHour < nowHour || 
+              (currentHour === nowHour && currentMin < nowMin)) {
+            isPastTime = true;
+          }
+        }
 
-      return bookedDate === dateString && bookedTime === slotStart;
-    });
+        // Check if this slot is booked
+        const bookedSlot = dayBookedSlots.find(booked => {
+          const bookedDateTime = booked.startTime;
+          const bookedDate = bookedDateTime.split('T')[0];
+          const bookedTime = bookedDateTime.split('T')[1]?.substring(0, 5);
 
-    let slotStatus: 'available' | 'pending' | 'booked' = 'available';
-    let isAvailable = true;
+          return bookedDate === dateString && bookedTime === slotStart;
+        });
 
-    if (bookedSlot) {
-      slotStatus = bookedSlot.status === 'PENDING' ? 'pending' : 'booked';
-      isAvailable = false;
-    }
+        let slotStatus: 'available' | 'pending' | 'booked' = 'available';
+        let isAvailable = true;
 
-    slots.push({
-      time: timeRange,
-      available: isAvailable,
-      status: slotStatus,
-    });
+        if (isPastTime) {
+          // ✅ เวลาที่ผ่านไปแล้ว - ไม่ให้จอง
+          slotStatus = 'booked'; // ใช้ status 'booked' เพื่อซ่อน
+          isAvailable = false;
+        } else if (bookedSlot) {
+          slotStatus = bookedSlot.status === 'PENDING' ? 'pending' : 'booked';
+          isAvailable = false;
+        }
 
-    currentHour = nextHour;
+        slots.push({
+          time: timeRange,
+          available: isAvailable,
+          status: slotStatus,
+        });    currentHour = nextHour;
     currentMin = nextMin;
   }
 });
