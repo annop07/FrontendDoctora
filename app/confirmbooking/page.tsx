@@ -57,6 +57,9 @@ export default function ConfirmPage() {
   const [queue, setQueue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [bookingError, setBookingError] = useState("");
+  
+  // ✅ เพิ่ม state สำหรับเก็บข้อมูลแพทย์ที่ดึงมา
+  const [loadingDoctor, setLoadingDoctor] = useState(false);
 
   const getNextQueue = () => {
     const lastQueue = parseInt(localStorage.getItem("lastQueue") || "0", 10);
@@ -87,7 +90,57 @@ export default function ConfirmPage() {
     setSelectedTime(bookingData.selectedTime || "");
 
     setQueue(getNextQueue());
+    
+    // ✅ ถ้าเป็นโหมด auto ให้ดึงข้อมูลแพทย์มาแสดง
+    if (bookingData.bookingType === 'auto' && bookingData.depart && bookingData.selectedDate) {
+      fetchDoctorForAutoMode(bookingData.depart, bookingData.selectedDate);
+    }
   }, []);
+
+  // ✅ ฟังก์ชันสำหรับดึงข้อมูลแพทย์ในโหมด auto
+  const fetchDoctorForAutoMode = async (specialty: string, date: string) => {
+    try {
+      setLoadingDoctor(true);
+      
+      // แปลง date เป็น format YYYY-MM-DD
+      let dateStr = date;
+      if (date.includes('T')) {
+        dateStr = date.split('T')[0];
+      }
+      
+      console.log('🔵 Fetching doctor for auto mode:', { specialty, date: dateStr });
+      
+      const response = await fetch(
+        `http://localhost:8082/api/doctors/smart-select?specialty=${encodeURIComponent(specialty)}&date=${dateStr}`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.doctor && data.doctor.doctorName) {
+          console.log('✅ Got doctor:', data.doctor.doctorName);
+          setDoctor(data.doctor.doctorName);
+          setDoctorId(data.doctor.id);
+          
+          // อัปเดตใน sessionStorage
+          const bookingData = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
+          bookingData.selectedDoctor = data.doctor.doctorName;
+          bookingData.selectedDoctorId = data.doctor.id;
+          sessionStorage.setItem(DRAFT_KEY, JSON.stringify(bookingData));
+        } else {
+          console.warn('⚠️ No doctor available');
+          setDoctor('กำลังจัดหาแพทย์...');
+        }
+      } else {
+        console.error('❌ Failed to fetch doctor');
+        setDoctor('กำลังจัดหาแพทย์...');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching doctor:', error);
+      setDoctor('กำลังจัดหาแพทย์...');
+    } finally {
+      setLoadingDoctor(false);
+    }
+  };
 
   const createPDFFromCanvas = async (canvas: HTMLCanvasElement, queueNumber: string) => {
     try {
@@ -305,88 +358,88 @@ export default function ConfirmPage() {
   };
 
   const handleConfirm = async () => {
-  try {
-    setIsLoading(true);
-    setBookingError("");
+    try {
+      setIsLoading(true);
+      setBookingError("");
 
-    // Check authentication
-    if (!user) {
-      setBookingError("กรุณาเข้าสู่ระบบก่อนทำการจอง");
-      return;
-    }
-
-    // Get booking data
-    const bookingData = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
-    let finalDoctorId = doctorId;
-
-    // ✅ Validate และจัดการ doctorId สำหรับทั้ง 2 โหมด
-    if (!finalDoctorId || finalDoctorId === -1) {
-      if (bookingData.bookingType === 'auto') {
-        // ✅ โหมด auto: เรียก smart-select API พร้อมวันที่ที่เลือก
-        console.log('🔵 Auto mode: Getting doctor via smart-select with date');
-        
-        try {
-          const specialty = bookingData.depart;
-          const dateStr = bookingData.selectedDate?.split('T')[0] || 
-                          new Date(bookingData.selectedDate).toISOString().split('T')[0];
-          
-          // ✅ เรียก smart-select พร้อมวันที่
-          const apiUrl = `http://localhost:8082/api/doctors/smart-select?specialty=${encodeURIComponent(specialty)}&date=${dateStr}`;
-          
-          console.log('🔍 Smart-select URL:', apiUrl);
-          
-          const response = await fetch(apiUrl);
-          
-          if (response.ok) {
-            const data = await response.json();
-            if (data.doctor && data.doctor.id) {
-              finalDoctorId = data.doctor.id;
-              console.log('✅ Got doctor from smart-select:', finalDoctorId, data.doctor.doctorName);
-              console.log('📊 Available time:', data.availableHours, 'hours');
-              
-              // อัปเดต doctor name เป็นชื่อจริงที่ได้จาก API
-              setDoctor(data.doctor.doctorName);
-            } else {
-              setBookingError("ขออภัย ไม่มีแพทย์ว่างในวันที่เลือก กรุณาเลือกวันอื่น");
-              return;
-            }
-          } else {
-            setBookingError("ไม่สามารถเลือกแพทย์ได้ กรุณาลองใหม่อีกครั้ง");
-            return;
-          }
-        } catch (error) {
-          console.error('Error calling smart-select:', error);
-          setBookingError("เกิดข้อผิดพลาดในการเลือกแพทย์");
-          return;
-        }
-      } else {
-        // ✅ โหมด manual: ต้องมี doctorId
-        setBookingError("ข้อมูลแพทย์ไม่ครบถ้วน กรุณาเริ่มการจองใหม่");
+      // Check authentication
+      if (!user) {
+        setBookingError("กรุณาเข้าสู่ระบบก่อนทำการจอง");
         return;
       }
-    }
 
-    // Validate patient data
-    if (!patient.firstName || !patient.lastName) {
-      setBookingError("ข้อมูลผู้ป่วยไม่ครบถ้วน");
-      return;
-    }
+      // Get booking data
+      const bookingData = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
+      let finalDoctorId = doctorId;
 
-    // Get patient data from sessionStorage
-    const patientData = JSON.parse(sessionStorage.getItem("patientData") || '{}');
+      // ✅ Validate และจัดการ doctorId สำหรับทั้ง 2 โหมด
+      if (!finalDoctorId || finalDoctorId === -1) {
+        if (bookingData.bookingType === 'auto') {
+          // ✅ โหมด auto: เรียก smart-select API พร้อมวันที่ที่เลือก
+          console.log('🔵 Auto mode: Getting doctor via smart-select with date');
+          
+          try {
+            const specialty = bookingData.depart;
+            const dateStr = bookingData.selectedDate?.split('T')[0] || 
+                            new Date(bookingData.selectedDate).toISOString().split('T')[0];
+            
+            // ✅ เรียก smart-select พร้อมวันที่
+            const apiUrl = `http://localhost:8082/api/doctors/smart-select?specialty=${encodeURIComponent(specialty)}&date=${dateStr}`;
+            
+            console.log('🔍 Smart-select URL:', apiUrl);
+            
+            const response = await fetch(apiUrl);
+            
+            if (response.ok) {
+              const data = await response.json();
+              if (data.doctor && data.doctor.id) {
+                finalDoctorId = data.doctor.id;
+                console.log('✅ Got doctor from smart-select:', finalDoctorId, data.doctor.doctorName);
+                console.log('📊 Available time:', data.availableHours, 'hours');
+                
+                // อัปเดต doctor name เป็นชื่อจริงที่ได้จาก API
+                setDoctor(data.doctor.doctorName);
+              } else {
+                setBookingError("ขออภัย ไม่มีแพทย์ว่างในวันที่เลือก กรุณาเลือกวันอื่น");
+                return;
+              }
+            } else {
+              setBookingError("ไม่สามารถเลือกแพทย์ได้ กรุณาลองใหม่อีกครั้ง");
+              return;
+            }
+          } catch (error) {
+            console.error('Error calling smart-select:', error);
+            setBookingError("เกิดข้อผิดพลาดในการเลือกแพทย์");
+            return;
+          }
+        } else {
+          // ✅ โหมด manual: ต้องมี doctorId
+          setBookingError("ข้อมูลแพทย์ไม่ครบถ้วน กรุณาเริ่มการจองใหม่");
+          return;
+        }
+      }
 
-    // Final validation to ensure finalDoctorId is not null
-    if (!finalDoctorId) {
-      setBookingError("ไม่พบข้อมูลแพทย์ กรุณาลองใหม่อีกครั้ง");
-      return;
-    }
+      // Validate patient data
+      if (!patient.firstName || !patient.lastName) {
+        setBookingError("ข้อมูลผู้ป่วยไม่ครบถ้วน");
+        return;
+      }
 
-    // Prepare API request
-    const appointmentRequest = AppointmentService.convertBookingDataToRequest(
-      bookingData,
-      patientData,
-      finalDoctorId  // ✅ ใช้ finalDoctorId ที่ได้จาก smart-select (ถ้าเป็นโหมด auto)
-    );
+      // Get patient data from sessionStorage
+      const patientData = JSON.parse(sessionStorage.getItem("patientData") || '{}');
+
+      // Final validation to ensure finalDoctorId is not null
+      if (!finalDoctorId) {
+        setBookingError("ไม่พบข้อมูลแพทย์ กรุณาลองใหม่อีกครั้ง");
+        return;
+      }
+
+      // Prepare API request
+      const appointmentRequest = AppointmentService.convertBookingDataToRequest(
+        bookingData,
+        patientData,
+        finalDoctorId  // ✅ ใช้ finalDoctorId ที่ได้จาก smart-select (ถ้าเป็นโหมด auto)
+      );
 
       console.log('Sending appointment request:', appointmentRequest);
 
@@ -576,18 +629,28 @@ export default function ConfirmPage() {
                     </div>
                   </div>
 
-                                  <div className="flex items-center space-x-3">
-                  <User className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm text-gray-600">แพทย์</p>
-                    <p className="font-semibold text-gray-800">
-                      {bookingType === 'auto' ? '-' : (doctor || "-")}
-                    </p>
-                    {bookingType === 'auto' && (
-                      <p className="text-xs text-gray-500 mt-0.5">โรงพยาบาลจะจัดแพทย์ให้ ณ โรงพยาบาล</p>
-                    )}
+                  {/* ✅ แสดงชื่อแพทย์จริง หรือ loading state */}
+                  <div className="flex items-center space-x-3">
+                    <User className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm text-gray-600">แพทย์</p>
+                      {loadingDoctor ? (
+                        <div className="flex items-center gap-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-600 border-t-transparent"></div>
+                          <p className="font-semibold text-gray-600">กำลังค้นหาแพทย์...</p>
+                        </div>
+                      ) : (
+                        <p className="font-semibold text-gray-800">
+                          {doctor || "-"}
+                        </p>
+                      )}
+                      {bookingType === 'auto' && !loadingDoctor && doctor && doctor !== 'กำลังจัดหาแพทย์...' && (
+                        <p className="text-xs text-emerald-600 mt-0.5">
+                          ✓ แพทย์ที่มีเวลาว่างมากที่สุด
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
 
                   <div className="flex items-center space-x-3">
                     <Clock className="w-5 h-5 text-emerald-600 flex-shrink-0" />
@@ -632,16 +695,21 @@ export default function ConfirmPage() {
               <button
                 onClick={handleConfirm}
                 className={`flex items-center gap-2 px-8 py-4 rounded-2xl transition-all duration-200 shadow-lg font-semibold ${
-                  isLoading
+                  isLoading || loadingDoctor
                     ? "bg-gray-400 text-gray-200 cursor-not-allowed"
                     : "bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-xl transform hover:-translate-y-0.5"
                 }`}
-                disabled={isLoading}
+                disabled={isLoading || loadingDoctor}
               >
                 {isLoading ? (
                   <>
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                     กำลังสร้าง PDF...
+                  </>
+                ) : loadingDoctor ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    กำลังค้นหาแพทย์...
                   </>
                 ) : (
                   <>
