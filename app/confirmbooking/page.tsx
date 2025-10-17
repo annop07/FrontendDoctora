@@ -336,8 +336,9 @@ export default function ConfirmPage() {
             const dateStr = bookingData.selectedDate?.split('T')[0] || 
                             new Date(bookingData.selectedDate).toISOString().split('T')[0];
             
-            // ✅ เรียก smart-select พร้อมวันที่
-            const apiUrl = `http://localhost:8082/api/doctors/smart-select?specialty=${encodeURIComponent(specialty)}&date=${dateStr}`;
+            // ✅ ใช้ API_BASE_URL แทนการ hardcode localhost
+            const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8082';
+            const apiUrl = `${apiBaseUrl}/api/doctors/smart-select?specialty=${encodeURIComponent(specialty)}&date=${dateStr}`;
             
             console.log('🔍 Smart-select URL:', apiUrl);
             
