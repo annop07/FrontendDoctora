@@ -58,9 +58,6 @@ export default function ConfirmPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [bookingError, setBookingError] = useState("");
   
-  // ✅ เพิ่ม state สำหรับเก็บข้อมูลแพทย์ที่ดึงมา
-  const [loadingDoctor, setLoadingDoctor] = useState(false);
-
   const getNextQueue = () => {
     const lastQueue = parseInt(localStorage.getItem("lastQueue") || "0", 10);
     const nextQueue = lastQueue + 1;
@@ -80,8 +77,14 @@ export default function ConfirmPage() {
     setBookingType(bookingData.bookingType || "");
     setSymptoms(bookingData.symptoms || "");
 
-    setDoctor(bookingData.selectedDoctor || "");
-    setDoctorId(bookingData.selectedDoctorId || null);
+    // ✅ สำหรับโหมด auto ให้แสดงข้อความเตรียมพร้อม แต่จะจัดแพทย์ตอนกดยืนยัน
+    if (bookingData.bookingType === 'auto') {
+      setDoctor("ระบบจะจัดแพทย์ที่เหมาะสมให้เมื่อยืนยันการจอง");
+      setDoctorId(-1); // dummy ID
+    } else {
+      setDoctor(bookingData.selectedDoctor || "");
+      setDoctorId(bookingData.selectedDoctorId || null);
+    }
 
     if (bookingData.selectedDate) {
       const d = new Date(bookingData.selectedDate);
@@ -90,57 +93,7 @@ export default function ConfirmPage() {
     setSelectedTime(bookingData.selectedTime || "");
 
     setQueue(getNextQueue());
-    
-    // ✅ ถ้าเป็นโหมด auto ให้ดึงข้อมูลแพทย์มาแสดง
-    if (bookingData.bookingType === 'auto' && bookingData.depart && bookingData.selectedDate) {
-      fetchDoctorForAutoMode(bookingData.depart, bookingData.selectedDate);
-    }
   }, []);
-
-  // ✅ ฟังก์ชันสำหรับดึงข้อมูลแพทย์ในโหมด auto
-  const fetchDoctorForAutoMode = async (specialty: string, date: string) => {
-    try {
-      setLoadingDoctor(true);
-      
-      // แปลง date เป็น format YYYY-MM-DD
-      let dateStr = date;
-      if (date.includes('T')) {
-        dateStr = date.split('T')[0];
-      }
-      
-      console.log('🔵 Fetching doctor for auto mode:', { specialty, date: dateStr });
-      
-      const response = await fetch(
-        `http://localhost:8082/api/doctors/smart-select?specialty=${encodeURIComponent(specialty)}&date=${dateStr}`
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.doctor && data.doctor.doctorName) {
-          console.log('✅ Got doctor:', data.doctor.doctorName);
-          setDoctor(data.doctor.doctorName);
-          setDoctorId(data.doctor.id);
-          
-          // อัปเดตใน sessionStorage
-          const bookingData = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}');
-          bookingData.selectedDoctor = data.doctor.doctorName;
-          bookingData.selectedDoctorId = data.doctor.id;
-          sessionStorage.setItem(DRAFT_KEY, JSON.stringify(bookingData));
-        } else {
-          console.warn('⚠️ No doctor available');
-          setDoctor('กำลังจัดหาแพทย์...');
-        }
-      } else {
-        console.error('❌ Failed to fetch doctor');
-        setDoctor('กำลังจัดหาแพทย์...');
-      }
-    } catch (error) {
-      console.error('❌ Error fetching doctor:', error);
-      setDoctor('กำลังจัดหาแพทย์...');
-    } finally {
-      setLoadingDoctor(false);
-    }
-  };
 
   const createPDFFromCanvas = async (canvas: HTMLCanvasElement, queueNumber: string) => {
     try {
@@ -629,24 +582,20 @@ export default function ConfirmPage() {
                     </div>
                   </div>
 
-                  {/* ✅ แสดงชื่อแพทย์จริง หรือ loading state */}
+                  {/* ✅ แสดงข้อความสำหรับโหมด auto */}
                   <div className="flex items-center space-x-3">
                     <User className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                     <div>
                       <p className="text-sm text-gray-600">แพทย์</p>
-                      {loadingDoctor ? (
-                        <div className="flex items-center gap-2">
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-600 border-t-transparent"></div>
-                          <p className="font-semibold text-gray-600">กำลังค้นหาแพทย์...</p>
-                        </div>
-                      ) : (
-                        <p className="font-semibold text-gray-800">
-                          {doctor || "-"}
-                        </p>
-                      )}
-                      {bookingType === 'auto' && !loadingDoctor && doctor && doctor !== 'กำลังจัดหาแพทย์...' && (
-                        <p className="text-xs text-emerald-600 mt-0.5">
-                          ✓ แพทย์ที่มีเวลาว่างมากที่สุด
+                      <p className="font-semibold text-gray-800">
+                        {bookingType === 'auto' 
+                          ? 'ระบบจะจัดแพทย์ให้เมื่อยืนยันการจอง' 
+                          : (doctor || "-")
+                        }
+                      </p>
+                      {bookingType === 'auto' && (
+                        <p className="text-xs text-blue-600 mt-0.5">
+                          💡 จะเลือกแพทย์ที่มีเวลาว่างมากที่สุด
                         </p>
                       )}
                     </div>
@@ -695,21 +644,16 @@ export default function ConfirmPage() {
               <button
                 onClick={handleConfirm}
                 className={`flex items-center gap-2 px-8 py-4 rounded-2xl transition-all duration-200 shadow-lg font-semibold ${
-                  isLoading || loadingDoctor
+                  isLoading
                     ? "bg-gray-400 text-gray-200 cursor-not-allowed"
                     : "bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-xl transform hover:-translate-y-0.5"
                 }`}
-                disabled={isLoading || loadingDoctor}
+                disabled={isLoading}
               >
                 {isLoading ? (
                   <>
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                     กำลังสร้าง PDF...
-                  </>
-                ) : loadingDoctor ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    กำลังค้นหาแพทย์...
                   </>
                 ) : (
                   <>
