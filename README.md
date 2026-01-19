@@ -8,6 +8,9 @@ https://github.com/annop07/doctora-spring-boot
 ## Deploy
 https://frontenddoctora-production-0742.up.railway.app/?fbclid=IwY2xjawNfbUhleHRuA2FlbQIxMABicmlkETFONU94QXBKWklBbXFCQ25KAR6X3Tn1LHGRpEL6ag2-a2r89V19j7k5_gfImDnQLHG7EfY6sGunww2AE2fBAQ_aem_U2pMmfM3n1cx1-5gxMpJ5A
 
+## Prototype Design
+URL : https://www.figma.com/design/qTf5bGDSNlYPHPKEhrCd5x/Software-Design-Project?node-id=3-37&t=JIc3rhKEhVxOoUSB-1
+
 ## เอกสารรูปเล่ม
 ส่งที่ classroom
 
